@@ -93,9 +93,13 @@ jobs:
         run: |+
           set -eux
 
-          gzip devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar
-          split -b 2000M devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz \
-          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part-
+          TEMP_EXTRACT=$(mktemp -d)
+          tar -xvf "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar" "${TEMP_EXTRACT}"
+          zip --verbose devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip "${TEMP_EXTRACT}"
+
+          split --verbose --numeric-suffixes --bytes=2000M --suffix-length=1 \
+          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip \
+          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip.part
           ls -lah
 
       - name: Pre-Release
