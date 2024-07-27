@@ -94,7 +94,7 @@ jobs:
           set -eux
 
           TEMP_EXTRACT=$(mktemp -d)
-          tar -xvf "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar" -C "${TEMP_EXTRACT}"
+          tar -xf "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar" -C "${TEMP_EXTRACT}"
           zip --verbose devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip "${TEMP_EXTRACT}"
 
           split --verbose --numeric-suffixes --bytes=2000M --suffix-length=1 \
