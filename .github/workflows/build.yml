@@ -67,7 +67,7 @@ jobs:
 
           docker pull ${{ steps.meta.outputs.tags }}
           docker images
-          docker export ${{ steps.meta.outputs.tags }} | gzip -c > ./tarball-${{ env.COMMIT_SHORT_SHA }}.tar.gz
+          docker export --output ./tarball-${{ env.COMMIT_SHORT_SHA }}.tar ${{ steps.meta.outputs.tags }}
 
       - name: Cleanup pre-releases
         uses: actions/github-script@v7.0.1
