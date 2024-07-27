@@ -114,7 +114,7 @@ ARG ASDF_VERSION=v0.14.0 \
     DEBIAN_FRONTEND \
     DEFAULT_USERNAME
 
-COPY --chown=${DEFAULT_USERNAME} --chmod=644 .tool-versions ~/.tool-versions
+COPY --chown=${DEFAULT_USERNAME} --chmod=644 .tool-versions /home/${DEFAULT_USERNAME}/.tool-versions
 
 # Install asdf
 RUN set -eux && \
