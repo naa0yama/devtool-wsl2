@@ -93,20 +93,18 @@ jobs:
         run: |+
           set -eux
 
-          TEMP_EXTRACT=$(mktemp -d)
-          gzip "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar"
           split --verbose --numeric-suffixes --bytes=2000M --suffix-length=1 \
-          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz \
-          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part
+          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar \
+          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.part
           ls -lah
 
       - name: Pre-Release
         uses: softprops/action-gh-release@v2
         with:
-          name: WSL2 image ${{ env.COMMIT_SHORT_SHA }}
+          name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
           tag_name: ${{ env.COMMIT_SHORT_SHA }}
           generate_release_notes: true
           draft: true
           prerelease: true
           files: |
-            ./devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part*
+            ./devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.part*
