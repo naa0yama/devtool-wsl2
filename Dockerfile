@@ -218,10 +218,11 @@ RUN set -eux && \
 # plugin install
 RUN set -eux && \
     source $HOME/.asdf/asdf.sh && \
-    asdf install && \
+    asdf install
 
 # asdf check
 RUN set -eux && \
+    source $HOME/.asdf/asdf.sh && \
     asdf current && \
     asdf list
 
