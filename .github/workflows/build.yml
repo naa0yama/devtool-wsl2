@@ -65,9 +65,10 @@ jobs:
         run: |
           set -eux
 
-          docker pull ${{ steps.meta.outputs.tags }}
+          docker pull ghcr.io/naa0yama/devtool-wsl2:${{ env.COMMIT_SHORT_SHA }}
           docker images
-          docker export --output ./tarball-${{ env.COMMIT_SHORT_SHA }}.tar ${{ steps.meta.outputs.tags }}
+          docker export --output ./tarball-devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar \
+            ghcr.io/naa0yama/devtool-wsl2:${{ env.COMMIT_SHORT_SHA }}
 
       - name: Cleanup pre-releases
         uses: actions/github-script@v7.0.1
