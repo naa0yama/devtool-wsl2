@@ -94,12 +94,10 @@ jobs:
           set -eux
 
           TEMP_EXTRACT=$(mktemp -d)
-          tar -xf "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar" -C "${TEMP_EXTRACT}"
-          zip --verbose --recurse-paths devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip "${TEMP_EXTRACT}"
-
+          gzip "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar"
           split --verbose --numeric-suffixes --bytes=2000M --suffix-length=1 \
-          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip \
-          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip.part
+          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz \
+          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part
           ls -lah
 
       - name: Pre-Release
@@ -111,4 +109,4 @@ jobs:
           draft: true
           prerelease: true
           files: |
-            ./devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.zip.part*
+            ./devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part*
