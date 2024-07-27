@@ -65,6 +65,7 @@ jobs:
         run: |
           set -eux
 
+          docker images
           docker export ${{ steps.meta.outputs.tags }} | gzip > ./tarball-${{ env.COMMIT_SHORT_SHA }}.tar.gz
 
       - name: Cleanup pre-releases
