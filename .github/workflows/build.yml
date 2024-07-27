@@ -1,7 +1,9 @@
 ---
 name: Build
 on:
-  push: {}
+  push:
+    branches:
+      - main
   schedule:
     - cron: '00 02 1 * *'
   workflow_dispatch: {}
