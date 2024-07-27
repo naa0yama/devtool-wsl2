@@ -65,6 +65,7 @@ jobs:
         run: |
           set -eux
 
+          ls -lah
           docker pull ghcr.io/naa0yama/devtool-wsl2:${{ env.COMMIT_SHORT_SHA }}
           docker images
           docker export --output ./tarball-devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar \
