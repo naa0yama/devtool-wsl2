@@ -218,6 +218,7 @@ RUN set -eux && \
 # plugin install
 RUN set -eux && \
     source $HOME/.asdf/asdf.sh && \
+    asdf install python && \
     asdf install
 
 # asdf check
