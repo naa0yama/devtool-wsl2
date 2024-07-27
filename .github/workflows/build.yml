@@ -65,6 +65,7 @@ jobs:
         run: |
           set -eux
 
+          docker pull ${{ steps.meta.outputs.tags }}
           docker images
           docker export ${{ steps.meta.outputs.tags }} | gzip > ./tarball-${{ env.COMMIT_SHORT_SHA }}.tar.gz
 
