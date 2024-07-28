@@ -4,6 +4,15 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+      - opened
+      - reopened
+      - synchronize
+      - auto_merge_enabled
   schedule:
     - cron: '00 02 1 * *'
   workflow_dispatch: {}
