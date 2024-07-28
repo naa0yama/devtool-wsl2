@@ -229,11 +229,13 @@ RUN set -eux && \
 
 # rust tools path append
 RUN set -eux && \
+    source $HOME/.asdf/asdf.sh && \
     echo -e "#asdf rust command\nexport PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin" >> ~/.bashrc && \
     source  ~/.bashrc
 
 # rust tools path check
     RUN set -eux && \
+    source $HOME/.asdf/asdf.sh && \
     type -p dua && \
     type -p rg && \
     type -p topgrade
