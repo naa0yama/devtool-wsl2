@@ -34,6 +34,7 @@ RUN set -eux && \
     curl \
     git \
     gpg-agent \
+    jq \
     man \
     man-db \
     mtr \
