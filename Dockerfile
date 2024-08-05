@@ -34,6 +34,7 @@ RUN set -eux && \
     curl \
     git \
     gpg-agent \
+    jq \
     man \
     man-db \
     mtr \
@@ -82,6 +83,13 @@ RUN set -eux && \
     apt-get -y autoremove && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Add Biome latest install
+RUN set -eux && \
+    curl -fSL -o /usr/local/bin/biome "$(curl -sfSL https://api.github.com/repos/biomejs/biome/releases/latest | \
+    jq -r '.assets[] | select(.name | endswith("linux-x64")) | .browser_download_url')" && \
+    chmod +x /usr/local/bin/biome && \
+    type -p biome
 
 # Install fish-shell
 RUN set -eux && \
