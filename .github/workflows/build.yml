@@ -69,7 +69,7 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=tar,dest=devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar
+          outputs: type=tar,dest=dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
@@ -106,10 +106,10 @@ jobs:
           set -eux
 
           mkdir -p dist
-          gzip "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar"
+          gzip "dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar"
           split --verbose --bytes=2000M --suffix-length=1 --numeric-suffixes=1 \
-          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz \
-          dist/devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part
+          dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz \
+          dist/dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part
 
       - name: Calculate the sha256sum
         if: ${{ github.event.pull_request.merged == true }}
@@ -117,7 +117,7 @@ jobs:
         run: |+
           set -eux
 
-          sha256sum devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part* > sha256sum.txt
+          sha256sum dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part* > sha256sum.txt
           ls -lah .
           
       - name: Determine if PR is from a bot
