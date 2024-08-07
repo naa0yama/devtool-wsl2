@@ -3,7 +3,6 @@
 WSL2 の開発環境を自動構築するセット  
 以前は、 WSL2 に都度コマンドを打って環境構築していたが似たような環境が複数必要になるため自動化し環境構築にかかる時間を省力化した。
 
-
 ## Software
 
 * CLI commands
@@ -22,22 +21,26 @@ WSL2 の開発環境を自動構築するセット
   * vim
   * wget
 
-|                                                        | Plugin URL                                                                        | Latest software version                                                  |
-| :----------------------------------------------------- | :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
-| [Docker Engine](https://gitub.com/moby/moby)           | -                                                                                 | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)             |
-| [fish-shell](https://github.com/fish-shell/fish-shell) | -                                                                                 | ![GitHub Tag](https://img.shields.io/github/v/tag/fish-shell/fish-shell) |
-| [asdf](https://github.com/asdf-vm/asdf)                | -                                                                                 | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)          |
-| [assh](https://github.com/moul/assh)                   | [zekker6/asdf-assh](https://github.com/zekker6/asdf-assh)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/moul/assh)             |
-| [aws-cli](https://github.com/aws/aws-cli/)             | [MetricMike/asdf-awscli](https://github.com/MetricMike/asdf-awscli)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)           |
-| [fzf]([junegunn/fzf](https://github.com/junegunn/fzf)) | [asdf-fzf](https://github.com/kompiro/asdf-fzf)                                   | ![GitHub Tag](https://img.shields.io/github/v/tag/junegunn/fzf)          |
-| [ghq](https://github.com/x-motemen/ghq)                | [kajisha/asdf-ghq](https://github.com/kajisha/asdf-ghq)                           | ![GitHub Tag](https://img.shields.io/github/v/tag/x-motemen/ghq)         |
-| [poetry](https://github.com/python-poetry/poetry)      | [asdf-community/asdf-poetry](https://github.com/asdf-community/asdf-poetry)       | ![GitHub Tag](https://img.shields.io/github/v/tag/python-poetry/poetry)  |
-| [python](https://github.com/python/cpython)            | [danhper/asdf-python](https://github.com/danhper/asdf-python)                     | ![GitHub Tag](https://img.shields.io/github/v/tag/python/cpython)        |
-| [rust](https://github.com/rust-lang/rust)              | [code-lever/asdf-rust](https://github.com/code-lever/asdf-rust)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/rust-lang/rust)        |
-| [aws-sam-cli](https://github.com/aws/aws-sam-cli)      | [amrox/asdf-pyapp](https://github.com/amrox/asdf-pyapp)                           | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-sam-cli)       |
-| [starship](https://github.com/starship/starship)       | [gr1m0h/asdf-starship](https://github.com/gr1m0h/asdf-starship)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/starship/starship)     |
-| [Terraform](https://github.com/hashicorp/terraform)    | [asdf-community/asdf-hashicorp](https://github.com/asdf-community/asdf-hashicorp) | ![GitHub Tag](https://img.shields.io/github/v/tag/hashicorp/terraform)   |
-| [Tmux](https://github.com/tmux/tmux)                   | [aphecetche/asdf-tmux](https://github.com/aphecetche/asdf-tmux)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/tmux/tmux)             |
+| Common software                                               | Latest software version                                                  |
+| :------------------------------------------------------------ | :----------------------------------------------------------------------- |
+| [Docker Engine](https://gitub.com/moby/moby)                  | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)             |
+| [fish-shell](https://github.com/fish-shell/fish-shell)        | ![GitHub Tag](https://img.shields.io/github/v/tag/fish-shell/fish-shell) |
+| [asdf](https://github.com/asdf-vm/asdf)                       | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)          |
+| [mame/wsl2-ssh-agent](https://github.com/mame/wsl2-ssh-agent) | ![GitHub Tag](https://img.shields.io/github/v/tag/mame/wsl2-ssh-agent)   |
+
+| asdf Plugins                                        |                                                                                   |                                                                         |
+| :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------- |
+| [assh](https://github.com/moul/assh)                | [zekker6/asdf-assh](https://github.com/zekker6/asdf-assh)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/moul/assh)            |
+| [aws-cli](https://github.com/aws/aws-cli/)          | [MetricMike/asdf-awscli](https://github.com/MetricMike/asdf-awscli)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)          |
+| [fzf](https://github.com/junegunn/fzf)              | [asdf-fzf](https://github.com/kompiro/asdf-fzf)                                   | ![GitHub Tag](https://img.shields.io/github/v/tag/junegunn/fzf)         |
+| [ghq](https://github.com/x-motemen/ghq)             | [kajisha/asdf-ghq](https://github.com/kajisha/asdf-ghq)                           | ![GitHub Tag](https://img.shields.io/github/v/tag/x-motemen/ghq)        |
+| [poetry](https://github.com/python-poetry/poetry)   | [asdf-community/asdf-poetry](https://github.com/asdf-community/asdf-poetry)       | ![GitHub Tag](https://img.shields.io/github/v/tag/python-poetry/poetry) |
+| [python](https://github.com/python/cpython)         | [danhper/asdf-python](https://github.com/danhper/asdf-python)                     | ![GitHub Tag](https://img.shields.io/github/v/tag/python/cpython)       |
+| [rust](https://github.com/rust-lang/rust)           | [code-lever/asdf-rust](https://github.com/code-lever/asdf-rust)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/rust-lang/rust)       |
+| [aws-sam-cli](https://github.com/aws/aws-sam-cli)   | [amrox/asdf-pyapp](https://github.com/amrox/asdf-pyapp)                           | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-sam-cli)      |
+| [starship](https://github.com/starship/starship)    | [gr1m0h/asdf-starship](https://github.com/gr1m0h/asdf-starship)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/starship/starship)    |
+| [Terraform](https://github.com/hashicorp/terraform) | [asdf-community/asdf-hashicorp](https://github.com/asdf-community/asdf-hashicorp) | ![GitHub Tag](https://img.shields.io/github/v/tag/hashicorp/terraform)  |
+| [Tmux](https://github.com/tmux/tmux)                | [aphecetche/asdf-tmux](https://github.com/aphecetche/asdf-tmux)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/tmux/tmux)            |
 
 | Rust Tools                                       | Latest release                                                          |
 | :----------------------------------------------- | :---------------------------------------------------------------------- |
@@ -150,7 +153,7 @@ tmux            3.4             /home/user/.tool-versions
 
 登録解除の場合は下記で ディストリビューションを停止してから `--unregister` を実施します
 
-```
+```bash
 wsl -t Ubuntu-2204
 wsl --unregister Ubuntu-2204
 
