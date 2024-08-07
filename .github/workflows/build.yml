@@ -87,8 +87,7 @@ jobs:
             const prereleases = __prereleases.data
 
             for (const index in prereleases) {
-              if (prereleases[index].draft == true &&
-                  prereleases[index].prerelease == true ) {
+              if (prereleases[index].prerelease == true) {
                 console.log('delte pre-release ' + prereleases[index]['id'] + '\t' + prereleases[index]['name'])
 
                 await github.rest.repos.deleteRelease({
@@ -112,8 +111,14 @@ jobs:
           devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz \
           dist/devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part
 
-          sha256sum dist/devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part* > dist/sha256sum.txt
-          ls -lah dist/
+      - name: Calculate the sha256sum
+        if: ${{ github.event.pull_request.merged == true }}
+        working-directory: dist
+        run: |+
+          set -eux
+
+          sha256sum devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part* > sha256sum.txt
+          ls -lah .
           
       - name: Pre-Release
         uses: softprops/action-gh-release@v2
@@ -122,7 +127,7 @@ jobs:
           name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
           tag_name: ${{ env.COMMIT_SHORT_SHA }}
           generate_release_notes: true
-          draft: true
-          prerelease: true
+          draft: ${{ github.event_name != 'schedule' || github.event.pull_request.merged == false }}
+          prerelease: ${{ github.event_name != 'schedule' }}
           files: |
             ./dist/*
