@@ -106,13 +106,15 @@ jobs:
         run: |+
           set -eux
 
-          TEMP_EXTRACT=$(mktemp -d)
+          mkdir -p dist
           gzip "devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar"
           split --verbose --numeric-suffixes --bytes=2000M --suffix-length=1 \
           devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz \
-          devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part
-          ls -lah
+          dist/devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part
 
+          sha256sum dist/devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part* > dist/sha256sum.txt
+          ls -lah dist/
+          
       - name: Pre-Release
         uses: softprops/action-gh-release@v2
         if: ${{ github.event.pull_request.merged == true }}
@@ -123,4 +125,4 @@ jobs:
           draft: true
           prerelease: true
           files: |
-            ./devtool-wsl2-${{ env.COMMIT_SHORT_SHA }}.tar.gz.part*
+            ./dist/*
