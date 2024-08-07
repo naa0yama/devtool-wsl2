@@ -134,33 +134,17 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "schedule" ]]; then
             echo "DRAFT=false" >> $GITHUB_ENV
-            echo "PRERELEASE=false" >> $GITHUB_ENV
             echo "MAKE_LATEST=true" >> $GITHUB_ENV
-          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" != "closed" && "${{ env.IS_BOT }}" == "false" ]]; then
+          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ env.IS_BOT }}" == "false" ]]; then
             echo "DRAFT=true" >> $GITHUB_ENV
-            echo "PRERELEASE=false" >> $GITHUB_ENV
             echo "MAKE_LATEST=false" >> $GITHUB_ENV
           elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
             echo "DRAFT=false" >> $GITHUB_ENV
-            echo "PRERELEASE=false" >> $GITHUB_ENV
             echo "MAKE_LATEST=true" >> $GITHUB_ENV
           else
             echo "DRAFT=false" >> $GITHUB_ENV
-            echo "PRERELEASE=false" >> $GITHUB_ENV
             echo "MAKE_LATEST=false" >> $GITHUB_ENV
           fi
-
-      - name: Pre-Release
-        uses: softprops/action-gh-release@v2
-        if: github.event_name == 'schedule' || (github.event_name == 'pull_request' && (github.event.action == 'opened' || (github.event.action == 'closed' && github.event.pull_request.merged == true)))
-        with:
-          name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
-          tag_name: ${{ env.COMMIT_SHORT_SHA }}
-          generate_release_notes: true
-          draft: ${{ env.DRAFT }}
-          prerelease: ${{ env.PRERELEASE }}
-          make_latest: ${{ env.MAKE_LATEST }}
-          files: ./dist/*
 
       - name: Pre-Release
         uses: softprops/action-gh-release@v2
@@ -169,8 +153,8 @@ jobs:
           name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
           tag_name: ${{ env.COMMIT_SHORT_SHA }}
           generate_release_notes: true
-          draft: ${{ env.IS_BOT == 'false' && github.event_name == 'pull_request' }}
+          draft: ${{ env.DRAFT }}
           prerelease: false
-          make_latest: ${{ github.event_name == 'schedule' || github.event.pull_request.merged == true }}
+          make_latest: ${{ env.MAKE_LATEST }}
           files: |
             ./dist/*
