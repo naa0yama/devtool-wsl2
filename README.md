@@ -28,7 +28,7 @@ WSL2 の開発環境を自動構築するセット
 | [asdf](https://github.com/asdf-vm/asdf)                       | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)          |
 | [mame/wsl2-ssh-agent](https://github.com/mame/wsl2-ssh-agent) | ![GitHub Tag](https://img.shields.io/github/v/tag/mame/wsl2-ssh-agent)   |
 
-| asdf Plugins                                        |                                                                                   |                                                                         |
+| asdf Plugins                                        | asdf Plugin URL                                                                   | Latest software version                                                 |
 | :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------- |
 | [assh](https://github.com/moul/assh)                | [zekker6/asdf-assh](https://github.com/zekker6/asdf-assh)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/moul/assh)            |
 | [aws-cli](https://github.com/aws/aws-cli/)          | [MetricMike/asdf-awscli](https://github.com/MetricMike/asdf-awscli)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)          |
