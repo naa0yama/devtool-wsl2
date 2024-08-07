@@ -9,7 +9,7 @@ ARG DEBIAN_FRONTEND=noninteractive \
 #- -----------------------------------------------------------------------------
 #- - Base
 #- -----------------------------------------------------------------------------
-FROM ubuntu:24.04 as base
+FROM ubuntu:24.04 AS base
 
 ARG DEFAULT_UID=1100 \
     DEFAULT_GID=1100 \
@@ -91,6 +91,19 @@ RUN set -eux && \
     chmod +x /usr/local/bin/biome && \
     type -p biome
 
+# Add wsl2-ssh-agent latest install
+RUN set -eux && \
+    __TEMPDIR=$(mktemp -d) && \
+    cd ${__TEMPDIR} && \
+    curl -fSL -O https://github.com/mame/wsl2-ssh-agent/releases/latest/download/wsl2-ssh-agent && \
+    curl -fSL -O https://github.com/mame/wsl2-ssh-agent/releases/latest/download/checksums.txt && \
+    grep -E '\swsl2-ssh-agent$' checksums.txt | sha256sum --status -c - && \
+    \
+    cp -av wsl2-ssh-agent /usr/local/bin/wsl2-ssh-agent && \
+    chmod +x /usr/local/bin/wsl2-ssh-agent && \
+    type -p wsl2-ssh-agent && \
+    rm -rf ${__TEMPDIR}
+
 # Install fish-shell
 RUN set -eux && \
     apt-add-repository -y ppa:fish-shell/release-3 && \
@@ -115,7 +128,7 @@ RUN set -eux && \
 #- -----------------------------------------------------------------------------
 #- - User
 #- -----------------------------------------------------------------------------
-FROM base as user
+FROM base AS user
 
 ARG ASDF_VERSION=v0.14.0 \
     \
@@ -200,7 +213,7 @@ RUN set -eux && \
 
 # asdf install plugin rust
 RUN set -eux && \
-    echo -e "// cli-tools\ndua-cli\nripgrep\ntopgrade\n" > ~/.default-cargo-crates && \
+    echo -e "// cli-tools\ndua-cli\nripgrep\ntopgrade\n" >  ~/.default-cargo-crates && \
     echo    "// install from source"                     >> ~/.default-cargo-crates && \
     echo    "// --git https://github.com/sharkdp/bat"    >> ~/.default-cargo-crates && \
     echo    ""                                           >> ~/.default-cargo-crates && \
@@ -242,17 +255,52 @@ RUN set -eux && \
     source  ~/.bashrc
 
 # rust tools path check
-    RUN set -eux && \
+RUN set -eux && \
     source $HOME/.asdf/asdf.sh && \
     type -p dua && \
     type -p rg && \
     type -p topgrade
 
+# wsl2-ssh-agent Config
+RUN <<EOF
+cat <<- _DOC_ >> ~/.bashrc
+
+# Bash configuration for wsl2-ssh-agent
+eval \$(/usr/local/bin/wsl2-ssh-agent)
+
+_DOC_
+
+mkdir -p ~/.config/fish
+cat <<- _DOC_ >> ~/.config/fish/config.fish
+
+# Fish configuration for wsl2-ssh-agent
+if status is-login
+  /usr/local/bin/wsl2-ssh-agent | source
+end
+
+_DOC_
+
+EOF
+
 # WSL settings
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root
-RUN set -x && \
-    echo -e "[automount]\nenabled=true\nmountFsTab=true\nroot=\"/mnt/\"\noptions=\"metadata,uid=1000,gid=1000,umask=0022\"\n[user]\ndefault=${DEFAULT_USERNAME}\n[boot]\nsystemd=true" > /etc/wsl.conf
+RUN <<EOF
+cat <<- _DOC_ > /etc/wsl.conf
+[automount]
+enabled=true
+mountFsTab=true
+root="/mnt/"
+options="metadata,uid=1000,gid=1000,umask=0022"
+
+[user]
+default=${DEFAULT_USERNAME}
+
+[boot]
+systemd=true
+
+_DOC_
+EOF
 
 # remove container optimize
 RUN set -eux && \
