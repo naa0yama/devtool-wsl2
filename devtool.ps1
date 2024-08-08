@@ -279,7 +279,6 @@ function Main {
 			$tarGzFile = Combine-Parts -downloadPath $downloadPath
 
 			if (-not $skipWSLImport -and $tarGzFile) {
-				# Move the tar.gz file and run WSL import
 				Import-WSL -wslPath $wslPath -tag_name $tag_name `
 					-tarGzFile $tarGzFile -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce
 			}
@@ -291,7 +290,9 @@ function Main {
 		Write-Host "`nAn error occurred: $_" -ForegroundColor Red
 		exit 1
 	} finally {
-		Cleanup-DownloadPath -downloadPath $downloadPath
+		if (-not $skipWSLImport) {
+			Cleanup-DownloadPath -downloadPath $downloadPath
+		}
 	}
 }
 
