@@ -271,7 +271,7 @@ function Main {
 		Write-Host "//"
 
 		# Run the download
-		# Download-Assets -assets $assets -downloadPath $downloadPath
+		Download-Assets -assets $assets -downloadPath $downloadPath
 
 		# Perform hash verification
 		if (Verify-Hashes -downloadPath $downloadPath) {
@@ -291,7 +291,7 @@ function Main {
 		Write-Host "`nAn error occurred: $_" -ForegroundColor Red
 		exit 1
 	} finally {
-		# Cleanup-DownloadPath -downloadPath $downloadPath
+		Cleanup-DownloadPath -downloadPath $downloadPath
 	}
 }
 
