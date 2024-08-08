@@ -50,37 +50,26 @@ WSL2 の開発環境を自動構築するセット
 
 ## 使い方
 
-[Releases · naa0yama/devtool-wsl2](https://github.com/naa0yama/devtool-wsl2/releases) から tar.gz をダウンロードします。
-
-Windows の場合はこちらで問題ないはず。  
+`Windows Terminal` などで PowerShell を開き下記のコマンドを投入すると最新の GitHub Releases から WSL2 イメージを取得し WSL に登録します
 
 ```powershell
-cmd.exe /C "copy /b devtool-wsl2-*.tar.gz.part* devtool-wsl2.tar.gz"
+powershell -ExecutionPolicy Unrestricted -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main/devtool.ps1' -OutFile 'devtool.ps1'; .\devtool.ps1"
 
 ```
 
-### 展開
+フラグオプションをいくつか用意しています
 
-WSL2 はデフォルトだと `$Env:USERPROFILE\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu22.04LTS_<RANDOM>\LocalState` にあります。  
-これだと扱いづらいため `$Env:USERPROFILE\Documents\WSL2` に展開する事にします。  
-ディストリビューション名 `Ubuntu-2204` とします。
-
-こちらは PowerShell で作業とします
-
-```powershell
-mkdir $Env:USERPROFILE\Documents\WSL2\Ubuntu-2204
-
-```
-
-Import の準備が出来たのでインポートします
-
-```powershell
-wsl --import Ubuntu-2204 $Env:USERPROFILE\Documents\WSL2\Ubuntu-2204 $Env:USERPROFILE\Downloads\devtool-wsl2.tar.gz
-
-```
+* `-skipWSLImport`
+  * WSL へ `Import` を実施しません。
+  * ダウンロードのみを実施し、スクリプト終了時のダウンロードフォルダークリーンアップ処理も実施しません。
+* `-skipWSLDefault`
+  * WSL へ `Import` した場合に `wsl --set-default <DistributionName>` の実行をしません
+* `-ImportForce`
+  * 同じ tag の WSL イメージが登録されている場合、登録解除(`wsl --unregister`)を実施し強制的に更新します
+  * **WSL イメージは削除されますので注意してください**
 
 Import 結果を確認します  
-`Ubuntu-2204` があれば Import 出来ています。
+`dwsl2-<tag>` があれば Import 出来ています。
 
 ```powershell
 wsl -l -v
@@ -91,7 +80,7 @@ wsl -l -v
 > wsl -l -v
   NAME            STATE           VERSION
 * Ubuntu-22.04    Running         2
-  Ubuntu-2204     Stopped         2
+  dwsl2-8718ff1   Stopped         2
   Ubuntu          Stopped         2
 
 ```
@@ -101,7 +90,7 @@ wsl -l -v
 起動出来ると Bash が起動します。
 
 ```powershelll
-wsl -d Ubuntu-2204
+wsl -d dwsl2-8718ff1
 user@dead-desk1:~$
 
 ```
@@ -128,22 +117,22 @@ tmux            3.4             /home/user/.tool-versions
 
 この手順では default に設定していないためディストリビューションを指定して起動する必要があります。  
 手間を省くために defualt に設定すると `wsl` コマンドで起動してくる事になります  
-下記の例では `Ubuntu-2204` を defualt に設定します。  
+下記の例では `dwsl2-8718ff1` を defualt に設定します。  
 `*` の付いている物が default 起動の WSL です。
 
 ```powershell
 > wsl -l -v
   NAME            STATE           VERSION
 * Ubuntu-22.04    Running         2
-  Ubuntu-2204     Stopped         2
+  dwsl2-8718ff1   Stopped         2
   Ubuntu          Stopped         2
 
-> wsl -s Ubuntu-2204
+> wsl -s dwsl2-8718ff1
 この操作を正しく終了しました。
 
 > wsl -l -v
   NAME            STATE           VERSION
-* Ubuntu-2204     Stopped         2
+* dwsl2-8718ff1   Stopped         2
   Ubuntu-22.04    Running         2
   Ubuntu          Stopped         2
 
@@ -154,7 +143,7 @@ tmux            3.4             /home/user/.tool-versions
 登録解除の場合は下記で ディストリビューションを停止してから `--unregister` を実施します
 
 ```bash
-wsl -t Ubuntu-2204
-wsl --unregister Ubuntu-2204
+wsl -t dwsl2-8718ff1
+wsl --unregister dwsl2-8718ff1
 
 ```
