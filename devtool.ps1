@@ -248,8 +248,8 @@ function Main {
 		$html_url = $response.html_url
 		$wslPath = "$env:USERPROFILE\Documents\WSL2"
 		$downloadPath = "$wslPath\dl\$tag_name"
-		Create-Dir $wslPath $downloadPath
 
+		Clear-Host
 		Write-Host "////////////////////////////////////////////////////////////////////////////////"
 		Write-Host "//`t     _            _              _                     _  _____ "
 		Write-Host "//`t    | |          | |            | |                   | |/ __  \"
@@ -269,6 +269,8 @@ function Main {
 		Write-Host "//`tskipWSLDefault`t`t$skipWSLDefault"
 		Write-Host "//`tImportForce`t`t$ImportForce"
 		Write-Host "//"
+
+		Create-Dir $wslPath $downloadPath
 
 		# Run the download
 		Download-Assets -assets $assets -downloadPath $downloadPath
