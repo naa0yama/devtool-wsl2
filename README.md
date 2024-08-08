@@ -64,9 +64,11 @@ powershell -ExecutionPolicy Unrestricted -Command "Invoke-WebRequest -Uri 'https
   * ダウンロードのみを実施し、スクリプト終了時のダウンロードフォルダークリーンアップ処理も実施しません。
 * `-skipWSLDefault`
   * WSL へ `Import` した場合に `wsl --set-default <DistributionName>` の実行をしません
-* `-ImportForce`
-  * 同じ tag の WSL イメージが登録されている場合、登録解除(`wsl --unregister`)を実施し強制的に更新します
-  * **WSL イメージは削除されますので注意してください**
+
+> [!IMPORTANT]
+> * `-ImportForce`
+>   * 同じ tag の WSL イメージが登録されている場合、登録解除(`wsl --unregister`)を実施し強制的に更新します
+> WSL イメージは削除されますので注意してください
 
 Import 結果を確認します  
 `dwsl2-<tag>` があれば Import 出来ています。
