@@ -200,11 +200,12 @@ function Import-WSL {
 	wsl --import dwsl2-$tag_name $importPath $tarGzFile --version 2
 	Write-Host "`nWSL imported successfully."
 
-	if ($skipWSLDefault) {
+	if (-not $skipWSLDefault) {
 		Write-Host "`nSetting WSL default Distribution"
 		wsl --set-default dwsl2-$tag_name
 	}
 }
+
 function Create-Dir {
 	param (
 		[string]$wslPath,
