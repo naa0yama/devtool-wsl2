@@ -1,0 +1,30 @@
+---
+# Ref: https://github.com/actions/labeler/tree/main#pull-request-labeler
+
+core:
+  - changed-files:
+    - any-glob-to-any-file:
+      - ".tool-versions"
+      - "Dockerfile"
+
+github_actions:
+  - changed-files:
+    - any-glob-to-any-file: ".github/**"
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - "docs/**"
+      - "README.md"
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: "tests/**"
+
+renovate:
+  - changed-files:
+    - any-glob-to-any-file: "renovate.json"
+
+# Branch pattern
+develop:
+  - head-branch: ["^dev/"]
