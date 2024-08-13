@@ -1,11 +1,11 @@
 assh 2.16.0
+aws-sam-cli 1.115.0
 awscli 2.17.28
 fzf 0.50.0
 ghq 1.6.1
-terraform 1.9.4
-python 3.10.12
 poetry 1.7.1
+python 3.10.12
 rust stable
 starship 1.18.2
+terraform 1.9.4
 tmux 3.4
-aws-sam-cli 1.115.0
