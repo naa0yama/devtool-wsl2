@@ -28,7 +28,10 @@ RUN set -eux && \
     apt-get -y upgrade && \
     yes | unminimize && \
     apt-get -y install --no-install-recommends \
+    automake \
     bash \
+    bison \
+    build-essential \
     ca-certificates \
     command-not-found \
     curl \
@@ -39,6 +42,7 @@ RUN set -eux && \
     man-db \
     mtr \
     nano \
+    pkg-config \
     software-properties-common \
     sudo \
     tcpdump \
@@ -248,10 +252,34 @@ RUN set -eux && \
     asdf current && \
     asdf list
 
+RUN <<EOF
+set -eux
+
+source $HOME/.asdf/asdf.sh
+cat ~/.tool-versions | cut -d " " -f 1 | while read line
+do
+    case ${line} in
+    "aws-sam-cli")
+        type -p sam
+    ;;
+    "awscli")
+        type -p aws
+    ;;
+    "rust")
+        type -p cargo
+    ;;
+    *)
+        type -p ${line}
+    ;;
+    esac
+done
+
+EOF
+
 # rust tools path append
 RUN set -eux && \
     source $HOME/.asdf/asdf.sh && \
-    echo -e "#asdf rust command\nexport PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin" >> ~/.bashrc && \
+    echo -e "\n#asdf rust command\nexport PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin" >> ~/.bashrc && \
     source  ~/.bashrc
 
 # rust tools path check
