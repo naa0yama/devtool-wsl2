@@ -51,7 +51,6 @@ RUN set -eux && \
     mtr \
     nano \
     openssh-client \
-    openssh-server \
     pkg-config \
     rsync \
     software-properties-common \
