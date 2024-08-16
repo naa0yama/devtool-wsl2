@@ -30,6 +30,7 @@ RUN set -eux && \
     apt-get -y install --no-install-recommends \
     automake \
     bash \
+    bind9-dnsutils \
     bison \
     build-essential \
     ca-certificates \
@@ -37,15 +38,25 @@ RUN set -eux && \
     curl \
     git \
     gpg-agent \
+    htop \
+    iproute2 \
+    iputils-arping \
+    iputils-ping \
+    iputils-tracepath \
     jq \
+    less \
+    lsof \
     man \
     man-db \
     mtr \
     nano \
+    openssh-client \
     pkg-config \
+    rsync \
     software-properties-common \
     sudo \
     tcpdump \
+    time \
     traceroute \
     unzip \
     vim \
@@ -319,7 +330,7 @@ cat <<- _DOC_ > /etc/wsl.conf
 enabled=true
 mountFsTab=true
 root="/mnt/"
-options="metadata,uid=1000,gid=1000,umask=0022"
+options="metadata,uid=${DEFAULT_UID},gid=${DEFAULT_GID},umask=0022"
 
 [user]
 default=${DEFAULT_USERNAME}
