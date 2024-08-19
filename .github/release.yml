@@ -7,7 +7,7 @@ changelog:
   categories:
     - title: Features 🎉
       labels: ['enhancement']
-    - title: Image Changed 🎉
+    - title: Image
       labels: ['core']
     - title: Bug Fixes 🐌
       labels: ['bug']
