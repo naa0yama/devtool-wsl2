@@ -53,6 +53,7 @@ RUN set -eux && \
     openssh-client \
     pkg-config \
     rsync \
+    socat \
     software-properties-common \
     sudo \
     tcpdump \
@@ -185,6 +186,11 @@ RUN set -eux && \
 RUN set -eux && \
     source $HOME/.asdf/asdf.sh && \
     asdf plugin-add ghq
+
+# asdf install plugin golang
+RUN set -eux && \
+    source $HOME/.asdf/asdf.sh && \
+    asdf plugin-add golang
 
 # asdf install plugin terraform
 RUN set -eux && \
