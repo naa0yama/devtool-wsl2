@@ -2,5 +2,40 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>naa0yama/renovate-config"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "Dockerfile"
+      ],
+      "matchStrings": [
+        "ASDF_VERSION: (?<currentValue>.*?)\\n"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "asdf-vm/asdf"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "Dockerfile"
+      ],
+      "matchStrings": [
+        "BIOME_VERSION: (?<currentValue>.*?)\\n"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "biomejs/biome"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "Dockerfile"
+      ],
+      "matchStrings": [
+        "WSL2SSHAGENT_VERSION: (?<currentValue>.*?)\\n"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "mame/wsl2-ssh-agent"
+    }
   ]
 }
