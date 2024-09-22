@@ -4,7 +4,7 @@
 ARG DEBIAN_FRONTEND=noninteractive \
     DEFAULT_USERNAME=user \
     \
-    ASDF_VERSION="v0.14.0" \
+    ASDF_VERSION="v0.14.1" \
     BIOME_VERSION="cli/v1.8.3" \
     WSL2SSHAGENT_VERSION="v0.9.5"
 
