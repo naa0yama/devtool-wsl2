@@ -10,7 +10,7 @@
         "Dockerfile"
       ],
       "matchStrings": [
-        "ASDF_VERSION:=\"(?<currentValue>.*?)\"\\n"
+        "ASDF_VERSION=\"(?<currentValue>.*?)\""
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "asdf-vm/asdf"
@@ -21,7 +21,7 @@
         "Dockerfile"
       ],
       "matchStrings": [
-        "BIOME_VERSION=\"(?<currentValue>.*?)\"\\n"
+        "BIOME_VERSION=\"(?<currentValue>.*?)\""
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "biomejs/biome"
@@ -32,7 +32,7 @@
         "Dockerfile"
       ],
       "matchStrings": [
-        "WSL2SSHAGENT_VERSION=\"(?<currentValue>.*?)\"\\n"
+        "WSL2SSHAGENT_VERSION=\"(?<currentValue>.*?)\""
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "mame/wsl2-ssh-agent"
