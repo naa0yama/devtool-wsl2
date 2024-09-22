@@ -4,6 +4,7 @@
 ARG DEBIAN_FRONTEND=noninteractive \
     DEFAULT_USERNAME=user \
     \
+    ASDF_VERSION="v0.14.0" \
     BIOME_VERSION="cli/v1.8.3" \
     WSL2SSHAGENT_VERSION="v0.9.5"
 
@@ -154,10 +155,10 @@ RUN set -eux && \
 #- -----------------------------------------------------------------------------
 FROM base AS user
 
-ARG ASDF_VERSION=v0.14.0 \
+ARG DEBIAN_FRONTEND \
+    DEFAULT_USERNAME \
     \
-    DEBIAN_FRONTEND \
-    DEFAULT_USERNAME
+    ASDF_VERSION
 
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 .tool-versions /home/${DEFAULT_USERNAME}/.tool-versions
 

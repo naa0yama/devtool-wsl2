@@ -10,6 +10,17 @@
         "Dockerfile"
       ],
       "matchStrings": [
+        "ASDF_VERSION: (?<currentValue>.*?)\\n"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "asdf-vm/asdf"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "Dockerfile"
+      ],
+      "matchStrings": [
         "BIOME_VERSION: (?<currentValue>.*?)\\n"
       ],
       "datasourceTemplate": "github-releases",
