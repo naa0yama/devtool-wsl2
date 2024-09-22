@@ -2,8 +2,10 @@
 #- - Global
 #- -----------------------------------------------------------------------------
 ARG DEBIAN_FRONTEND=noninteractive \
+    DEFAULT_USERNAME=user \
     \
-    DEFAULT_USERNAME=user
+    BIOME_VERSION="cli/v1.8.3" \
+    WSL2SSHAGENT_VERSION="v0.9.5"
 
 
 #- -----------------------------------------------------------------------------
@@ -13,7 +15,9 @@ FROM ubuntu:24.04 AS base
 
 ARG DEFAULT_UID=1100 \
     DEFAULT_GID=1100 \
-    DEFAULT_USERNAME
+    DEFAULT_USERNAME \
+    BIOME_VERSION \
+    WSL2SSHAGENT_VERSION
 
 ENV TZ=Asia/Tokyo
 
@@ -26,6 +30,7 @@ RUN set -eux && \
 RUN set -eux && \
     apt-get -y update && \
     apt-get -y upgrade && \
+    apt-get -y install --no-install-recommends unminimize && \
     yes | unminimize && \
     apt-get -y install --no-install-recommends \
     automake \
@@ -101,7 +106,8 @@ RUN set -eux && \
 
 # Add Biome latest install
 RUN set -eux && \
-    curl -fSL -o /usr/local/bin/biome "$(curl -sfSL https://api.github.com/repos/biomejs/biome/releases/latest | \
+    if [ -z "${BIOME_VERSION}" ]; then echo "BIOME_VERSION is blank"; else echo "BIOME_VERSION is set to '$BIOME_VERSION'"; fi && \
+    curl -fSL -o /usr/local/bin/biome "$(curl -sfSL https://api.github.com/repos/biomejs/biome/releases/tags/${BIOME_VERSION} | \
     jq -r '.assets[] | select(.name | endswith("linux-x64")) | .browser_download_url')" && \
     chmod +x /usr/local/bin/biome && \
     type -p biome
@@ -110,8 +116,11 @@ RUN set -eux && \
 RUN set -eux && \
     __TEMPDIR=$(mktemp -d) && \
     cd ${__TEMPDIR} && \
-    curl -fSL -O https://github.com/mame/wsl2-ssh-agent/releases/latest/download/wsl2-ssh-agent && \
-    curl -fSL -O https://github.com/mame/wsl2-ssh-agent/releases/latest/download/checksums.txt && \
+    if [ -z "${WSL2SSHAGENT_VERSION}" ]; then echo "WSL2SSHAGENT_VERSION is blank"; else echo "WSL2SSHAGENT_VERSION is set to '$WSL2SSHAGENT_VERSION'"; fi && \
+    curl -fSL -O "$(curl -sfSL https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
+    jq -r '.assets[] | select(.name | endswith("wsl2-ssh-agent")) | .browser_download_url')" && \
+    curl -fSL -O "$(curl -sfSL https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
+    jq -r '.assets[] | select(.name | endswith("checksums.txt")) | .browser_download_url')" && \
     grep -E '\swsl2-ssh-agent$' checksums.txt | sha256sum --status -c - && \
     \
     cp -av wsl2-ssh-agent /usr/local/bin/wsl2-ssh-agent && \
