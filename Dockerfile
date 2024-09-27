@@ -329,6 +329,9 @@ end
 
 _DOC_
 
+mkdir -p ~/.ssh
+chmod 0700 ~/.ssh
+
 EOF
 
 # WSL settings
