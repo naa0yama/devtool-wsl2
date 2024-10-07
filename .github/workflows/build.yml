@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout from repository
-        uses: actions/checkout@v4.2.0
+        uses: actions/checkout@v4.2.1
 
       - name: Set short git commit SHA
         run: |+
