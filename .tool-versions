@@ -7,5 +7,5 @@ poetry 1.8.4
 python 3.10.12
 rust stable
 starship 1.18.2
-terraform 1.10.0
+terraform 1.10.1
 tmux 3.4
