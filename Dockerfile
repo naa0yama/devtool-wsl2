@@ -129,25 +129,7 @@ RUN set -eux && \
     type -p wsl2-ssh-agent && \
     rm -rf ${__TEMPDIR}
 
-# Install fish-shell
-RUN set -eux && \
-    apt-add-repository -y ppa:fish-shell/release-3 && \
-    apt-get -y update && \
-    apt-get -y install --no-install-recommends \
-    fish && \
-    \
-    # Cleanup \
-    apt-get -y autoremove && \
-    apt-get -y clean && \
-    rm -rf /var/lib/apt/lists/*
-
 USER ${DEFAULT_USERNAME}
-
-# Install fish settings
-RUN set -eux && \
-    mkdir -p ~/.config/fish/completions && \
-    ln -s ~/.asdf/completions/asdf.fish \
-    ~/.config/fish/completions
 
 
 #- -----------------------------------------------------------------------------
@@ -167,14 +149,12 @@ RUN set -eux && \
     git clone https://github.com/asdf-vm/asdf.git ~/.asdf \
     --depth 1 --branch ${ASDF_VERSION} && \
     mkdir -p ~/.config/fish && \
-    echo "source ~/.asdf/asdf.fish" > ~/.config/fish/config.fish && \
     echo ". \"\$HOME/.asdf/asdf.sh\"" >> ~/.bashrc && \
     echo ". \"\$HOME/.asdf/completions/asdf.bash\"" >> ~/.bashrc
 
 # asdf update
-RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf update
+# RUN set -eux && \
+#     source $HOME/.asdf/asdf.sh
 
 # asdf install plugin asdf-assh
 RUN set -eux && \
