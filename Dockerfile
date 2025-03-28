@@ -4,7 +4,7 @@
 ARG DEBIAN_FRONTEND=noninteractive \
     DEFAULT_USERNAME=user \
     \
-    ASDF_VERSION="v0.14.1" \
+    ASDF_VERSION="v0.16.7" \
     BIOME_VERSION="cli/v1.8.3" \
     WSL2SSHAGENT_VERSION="v0.9.5"
 
@@ -17,6 +17,7 @@ FROM ubuntu:24.04 AS base
 ARG DEFAULT_UID=1100 \
     DEFAULT_GID=1100 \
     DEFAULT_USERNAME \
+    ASDF_VERSION \
     BIOME_VERSION \
     WSL2SSHAGENT_VERSION
 
@@ -105,7 +106,31 @@ RUN set -eux && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Add Biome latest install
+# Add asdf install
+RUN set -eux && \
+    cd /tmp && \
+    if [ -z "${ASDF_VERSION}" ]; then echo "ASDF_VERSION is blank"; else echo "ASDF_VERSION is set to '$ASDF_VERSION'"; fi && \
+    curl -fSL -o /tmp/asdf.tar.gz "$(curl -sfSL https://api.github.com/repos/asdf-vm/asdf/releases/tags/${ASDF_VERSION} | \
+    jq -r '.assets[] | select(.name | endswith("linux-amd64.tar.gz")) | .browser_download_url')" && \
+    tar -xf /tmp/asdf.tar.gz && \
+    mv -v /tmp/asdf /usr/local/bin/asdf && \
+    type -p asdf && \
+    asdf version
+
+USER ${DEFAULT_USERNAME}
+RUN <<EOF
+cat <<- _DOC_ >> ~/.bashrc
+
+#asdf command
+export PATH="\${ASDF_DATA_DIR:-$HOME/.asdf}/shims:\$PATH"
+. <(asdf completion bash)
+
+_DOC_
+EOF
+
+USER root
+
+# Add Biome install
 RUN set -eux && \
     if [ -z "${BIOME_VERSION}" ]; then echo "BIOME_VERSION is blank"; else echo "BIOME_VERSION is set to '$BIOME_VERSION'"; fi && \
     curl -fSL -o /usr/local/bin/biome "$(curl -sfSL https://api.github.com/repos/biomejs/biome/releases/tags/${BIOME_VERSION} | \
@@ -129,25 +154,7 @@ RUN set -eux && \
     type -p wsl2-ssh-agent && \
     rm -rf ${__TEMPDIR}
 
-# Install fish-shell
-RUN set -eux && \
-    apt-add-repository -y ppa:fish-shell/release-3 && \
-    apt-get -y update && \
-    apt-get -y install --no-install-recommends \
-    fish && \
-    \
-    # Cleanup \
-    apt-get -y autoremove && \
-    apt-get -y clean && \
-    rm -rf /var/lib/apt/lists/*
-
 USER ${DEFAULT_USERNAME}
-
-# Install fish settings
-RUN set -eux && \
-    mkdir -p ~/.config/fish/completions && \
-    ln -s ~/.asdf/completions/asdf.fish \
-    ~/.config/fish/completions
 
 
 #- -----------------------------------------------------------------------------
@@ -156,50 +163,30 @@ RUN set -eux && \
 FROM base AS user
 
 ARG DEBIAN_FRONTEND \
-    DEFAULT_USERNAME \
-    \
-    ASDF_VERSION
+    DEFAULT_USERNAME
 
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 .tool-versions /home/${DEFAULT_USERNAME}/.tool-versions
 
 # Install asdf
-RUN set -eux && \
-    git clone https://github.com/asdf-vm/asdf.git ~/.asdf \
-    --depth 1 --branch ${ASDF_VERSION} && \
-    mkdir -p ~/.config/fish && \
-    echo "source ~/.asdf/asdf.fish" > ~/.config/fish/config.fish && \
-    echo ". \"\$HOME/.asdf/asdf.sh\"" >> ~/.bashrc && \
-    echo ". \"\$HOME/.asdf/completions/asdf.bash\"" >> ~/.bashrc
-
-# asdf update
-RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf update
-
 # asdf install plugin asdf-assh
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add assh
+    asdf plugin add assh
 
 # asdf install plugin awscli
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add awscli
+    asdf plugin add awscli
 
 # asdf install plugin fzf
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add fzf
+    asdf plugin add fzf
 
 # asdf install plugin ghq
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add ghq
+    asdf plugin add ghq
 
 # asdf install plugin terraform
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add terraform
+    asdf plugin add terraform
 
 # Dependencies Python
 USER root
@@ -228,13 +215,11 @@ RUN set -eux && \
 # asdf install plugin python
 USER ${DEFAULT_USERNAME}
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add python
+    asdf plugin add python
 
 # asdf install plugin poetry
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add poetry
+    asdf plugin add poetry
 
 # asdf install plugin rust
 RUN set -eux && \
@@ -243,40 +228,34 @@ RUN set -eux && \
     echo    "// --git https://github.com/sharkdp/bat"    >> ~/.default-cargo-crates && \
     echo    ""                                           >> ~/.default-cargo-crates && \
     \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add rust
+    asdf plugin add rust
 
 # asdf install plugin starship
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add starship
+    asdf plugin add starship
 
 # asdf install plugin tmux
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add tmux
+    asdf plugin add tmux
 
 # asdf install plugin aws-sam-cli
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    asdf plugin-add aws-sam-cli
+    asdf plugin add aws-sam-cli
 
 # plugin install
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
     asdf install python && \
     asdf install
 
 # asdf check
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
     asdf current && \
     asdf list
 
+ARG PATH="/home/${DEFAULT_USERNAME}/.asdf/shims:${PATH}"
 RUN <<EOF
 set -eux
 
-source $HOME/.asdf/asdf.sh
 cat ~/.tool-versions | cut -d " " -f 1 | while read line
 do
     case ${line} in
@@ -298,14 +277,17 @@ done
 EOF
 
 # rust tools path append
-RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
-    echo -e "\n#asdf rust command\nexport PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin" >> ~/.bashrc && \
-    source  ~/.bashrc
+RUN <<EOF
+cat <<- _DOC_ >> ~/.bashrc
+#asdf rust command
+export PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin
+
+_DOC_
+EOF
 
 # rust tools path check
 RUN set -eux && \
-    source $HOME/.asdf/asdf.sh && \
+    source ~/.bashrc && \
     type -p dua && \
     type -p rg && \
     type -p topgrade
@@ -316,16 +298,6 @@ cat <<- _DOC_ >> ~/.bashrc
 
 # Bash configuration for wsl2-ssh-agent
 eval \$(/usr/local/bin/wsl2-ssh-agent)
-
-_DOC_
-
-mkdir -p ~/.config/fish
-cat <<- _DOC_ >> ~/.config/fish/config.fish
-
-# Fish configuration for wsl2-ssh-agent
-if status is-login
-  /usr/local/bin/wsl2-ssh-agent | source
-end
 
 _DOC_
 

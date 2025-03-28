@@ -62,7 +62,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6.13.0
+        uses: docker/build-push-action@v6.15.0
         with:
           context: .
           file: Dockerfile
@@ -87,8 +87,8 @@ jobs:
             const prereleases = __prereleases.data
 
             for (const index in prereleases) {
-              if (prereleases[index].prerelease == true) {
-                console.log('delte pre-release ' + prereleases[index]['id'] + '\t' + prereleases[index]['name'])
+              if (prereleases[index].prerelease == true || prereleases[index].draft == true) {
+                console.log('delete pre-release & draft ' + prereleases[index]['id'] + '\t' + prereleases[index]['name'])
 
                 await github.rest.repos.deleteRelease({
                   owner: context.repo.owner,
