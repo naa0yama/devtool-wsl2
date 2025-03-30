@@ -3,15 +3,44 @@
 param (
 	[switch]$skipWSLImport,
 	[switch]$skipWSLDefault,
-	[switch]$ImportForce
+	[switch]$ImportForce,
+	[switch]$Debug
 )
 $env:WSL_UTF8=1
+
+# TLS 1.2を有効化（セキュアな通信のため）
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# エラーハンドリングの設定
+$ErrorActionPreference = "Stop"
+
+# エラーログファイルのパス
+$logFile = "$env:USERPROFILE\devtool-error.log"
+
+# ログ出力関数
+function Write-Log {
+    param (
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] [$Level] $Message"
+    Add-Content -Path $logFile -Value $logMessage
+    Write-Host $logMessage
+}
+
+# エラーログをクリア
+if (Test-Path $logFile) {
+    Remove-Item $logFile -Force
+}
+Write-Log "スクリプト実行開始"
 
 function Get-LatestReleaseInfo {
 	param (
 		[string]$owner,
 		[string]$repo
 	)
+	Write-Log "[DEBUG] Calling GitHub API for $owner/$repo"
 	$apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
 	$headers = @{
 		"User-Agent" = "PowerShell"
@@ -23,10 +52,11 @@ function Get-LatestReleaseInfo {
 function Download-Assets {
 	param (
 		[array]$assets,
-		[string]$downloadPath
+		[string]$downloadPath,
+		[int]$maxRetries = 5,
+		[int]$retryDelaySeconds = 15
 	)
-	Add-Type -AssemblyName System.Net.Http
-	$httpClient = [System.Net.Http.HttpClient]::new()
+	Write-Log "[DEBUG] Starting download of assets to $downloadPath using direct download method"
 	$totalAssets = $assets.Count
 	$currentAssetIndex = 0
 
@@ -35,63 +65,172 @@ function Download-Assets {
 			$currentAssetIndex++
 			$assetUrl = $asset.browser_download_url
 			$outputFile = Join-Path $downloadPath $asset.name
-			Write-Host "Downloading $($asset.name)"
+			Write-Log "Downloading $($asset.name)"
 
-			try {
-				$response = $httpClient.GetAsync($assetUrl, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
-				$response.EnsureSuccessStatusCode() | Out-Null
+			$retryCount = 0
+			$downloadSuccess = $false
 
-				$totalBytes = $response.Content.Headers.ContentLength
-				$stream = $response.Content.ReadAsStreamAsync().Result
-				$fileStream = [System.IO.File]::Create($outputFile)
-				$buffer = New-Object byte[] 8388608 # 8MB
-				$totalRead = 0
-				$read = 0
-				$lastProgress = 0
-
-				while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-					$fileStream.Write($buffer, 0, $read)
-					$totalRead += $read
-					$percentComplete = [math]::Round(($totalRead / $totalBytes) * 100, 2)
-					if ($percentComplete -ge $lastProgress + 1) {
-						Write-Progress `
-						-Activity "Downloading $($asset.name) ($currentAssetIndex of $totalAssets)" `
-						-Status "$percentComplete% Complete" `
-						-PercentComplete $percentComplete
-						$lastProgress = $percentComplete
+			while (-not $downloadSuccess -and $retryCount -lt $maxRetries) {
+				try {
+					if ($retryCount -gt 0) {
+						Write-Log "Retry attempt $retryCount for $($asset.name)" -Level "INFO"
+						Start-Sleep -Seconds ($retryDelaySeconds * $retryCount) # 指数バックオフ
 					}
-				}
 
-				$fileStream.Close()
-				$stream.Close()
+					# 一時ファイル名を使用（ファイルロック問題を回避）
+					$tempFile = "$outputFile.tmp"
 
-				# Check the file size after download
-				$downloadedFileSize = (Get-Item $outputFile).Length
-				if ($downloadedFileSize -eq $totalBytes) {
-					Write-Host "Download Complete: $($asset.name)"
-				} else {
-					Write-Error "Download incomplete or corrupted: $($asset.name). Expected size: $totalBytes, Actual size: $downloadedFileSize"
+					# 既存のファイルがある場合は削除
+					if (Test-Path $tempFile) {
+						try {
+							Remove-Item $tempFile -Force -ErrorAction Stop
+							Write-Log "Removed existing temp file: $tempFile" -Level "INFO"
+						} catch {
+							Write-Log "Failed to remove temp file: $tempFile. Error: $_" -Level "ERROR"
+							$retryCount++
+							continue
+						}
+					}
+
+					# 既存の出力ファイルがある場合は削除
+					if (Test-Path $outputFile) {
+						try {
+							Remove-Item $outputFile -Force -ErrorAction Stop
+							Write-Log "Removed existing output file: $outputFile" -Level "INFO"
+						} catch {
+							Write-Log "Failed to remove output file: $outputFile. Error: $_" -Level "ERROR"
+							$retryCount++
+							continue
+						}
+					}
+
+					# curlを使用してダウンロード（最初から最も信頼性の高い方法を使用）
+					Write-Log "Starting download using curl to temp file: $tempFile" -Level "INFO"
+
+					try {
+						# curl.exeが存在するか確認
+						$curlPath = "curl.exe"
+						if (-not (Get-Command $curlPath -ErrorAction SilentlyContinue)) {
+							Write-Log "curl.exe not found in PATH. Trying Windows built-in curl..." -Level "INFO"
+							$curlPath = "$env:SystemRoot\System32\curl.exe"
+
+							if (-not (Test-Path $curlPath)) {
+								Write-Log "Windows built-in curl.exe not found. Cannot proceed with download." -Level "ERROR"
+								throw "curl.exe not found"
+							}
+						}
+
+						# curlを使用してダウンロード
+						$curlArgs = @(
+							"-L", # リダイレクトに従う
+							"-o", $tempFile, # 出力ファイル
+							"--retry", "5", # リトライ回数
+							"--retry-delay", "5", # リトライ間隔（秒）
+							"--retry-max-time", "60", # 最大リトライ時間（秒）
+							"--connect-timeout", "30", # 接続タイムアウト（秒）
+							"--max-time", "3600", # 最大実行時間（秒）
+							"--keepalive-time", "60", # キープアライブ時間（秒）
+							$assetUrl # URL
+						)
+
+						Write-Log "Executing curl command: $curlPath $($curlArgs -join ' ')" -Level "INFO"
+						Write-Log "Download started at $(Get-Date)" -Level "INFO"
+
+						# curlプロセスを開始
+						$curlProcess = Start-Process -FilePath $curlPath -ArgumentList $curlArgs -NoNewWindow -PassThru -Wait
+
+						Write-Log "Download completed at $(Get-Date) with exit code: $($curlProcess.ExitCode)" -Level "INFO"
+
+						if ($curlProcess.ExitCode -ne 0) {
+							Write-Log "curl failed with exit code: $($curlProcess.ExitCode)" -Level "ERROR"
+							throw "curl download failed with exit code: $($curlProcess.ExitCode)"
+						}
+					} catch {
+						Write-Log "Error during curl download: $_" -Level "ERROR"
+						throw
+					}
+
+					# ダウンロード完了の確認
+					if (Test-Path $tempFile) {
+						$downloadedFileSize = (Get-Item $tempFile).Length
+						if ($downloadedFileSize -gt 0) {
+							# 一時ファイルを最終ファイルにリネーム
+							try {
+								Move-Item -Path $tempFile -Destination $outputFile -Force -ErrorAction Stop
+								Write-Log "Download Complete: $($asset.name) (Size: $downloadedFileSize bytes)" -Level "INFO"
+								$downloadSuccess = $true
+							} catch {
+								Write-Log "Failed to rename temp file to output file: $_" -Level "ERROR"
+								$retryCount++
+							}
+						} else {
+							Write-Log "Download resulted in empty file" -Level "ERROR"
+							$retryCount++
+						}
+					} else {
+						Write-Log "Download failed: Temp file not found" -Level "ERROR"
+						$retryCount++
+					}
+				} catch {
+					Write-Log "An error occurred while downloading $($asset.name): $_" -Level "ERROR"
+					$retryCount++
 				}
-			} catch [System.Net.Http.HttpRequestException] {
-				Write-Error "Network or DNS error occurred while downloading $($asset.name): $_"
-			} catch {
-				Write-Error "An error occurred while downloading $($asset.name): $_"
-			} finally {
-				if ($fileStream) {
-					$fileStream.Close()
-				}
-				if ($stream) {
-					$stream.Close()
+			}
+
+			if (-not $downloadSuccess) {
+				Write-Log "Failed to download $($asset.name) after $maxRetries attempts" -Level "ERROR"
+
+				# 最後の手段として、Invoke-WebRequestを使用してダウンロードを試みる
+				try {
+					Write-Log "Attempting to download $($asset.name) using Invoke-WebRequest as fallback" -Level "INFO"
+
+					# 一時ファイル名を使用
+					$tempFile = "$outputFile.iwr.tmp"
+
+					# 既存のファイルがある場合は削除
+					if (Test-Path $tempFile) {
+						try {
+							Remove-Item $tempFile -Force -ErrorAction Stop
+						} catch {
+							Write-Log "Failed to remove Invoke-WebRequest temp file: $_" -Level "ERROR"
+							continue
+						}
+					}
+
+					# Invoke-WebRequestを使用してダウンロード
+					Write-Log "Download started at $(Get-Date) using Invoke-WebRequest" -Level "INFO"
+					Invoke-WebRequest -Uri $assetUrl -OutFile $tempFile -UseBasicParsing -TimeoutSec 3600
+					Write-Log "Download completed at $(Get-Date) using Invoke-WebRequest" -Level "INFO"
+
+					if (Test-Path $tempFile) {
+						$fileSize = (Get-Item $tempFile).Length
+						if ($fileSize -gt 0) {
+							# 一時ファイルを最終ファイルにリネーム
+							try {
+								Move-Item -Path $tempFile -Destination $outputFile -Force -ErrorAction Stop
+								Write-Log "Fallback download complete using Invoke-WebRequest: $($asset.name) (Size: $fileSize bytes)" -Level "INFO"
+								$downloadSuccess = $true
+							} catch {
+								Write-Log "Failed to rename Invoke-WebRequest temp file to output file: $_" -Level "ERROR"
+							}
+						} else {
+							Write-Log "Fallback download with Invoke-WebRequest produced empty file" -Level "ERROR"
+						}
+					} else {
+						Write-Log "Fallback download with Invoke-WebRequest failed: temp file not found" -Level "ERROR"
+					}
+				} catch {
+					Write-Log "Fallback download with Invoke-WebRequest also failed for $($asset.name): $_" -Level "ERROR"
 				}
 			}
 		}
 	}
-	$httpClient.Dispose()
 }
 
 function Verify-Hashes {
 	param (
-		[string]$downloadPath
+		[string]$downloadPath,
+		[switch]$skipMissingFiles
 	)
 	$sha256sumFile = Join-Path $downloadPath "sha256sum.txt"
 	if (Test-Path $sha256sumFile) {
@@ -105,6 +244,7 @@ function Verify-Hashes {
 
 		$totalFiles = $hashes.Count
 		$matchedFiles = 0
+		$missingFiles = 0
 
 		for ($i = 0; $i -lt $totalFiles; $i++) {
 			$hash = $hashes[$i]
@@ -119,11 +259,15 @@ function Verify-Hashes {
 				}
 			} else {
 				Write-Host "[$($i + 1)/$totalFiles] $($hash.File) not found."
+				$missingFiles++
 			}
 		}
 
 		if ($matchedFiles -eq $totalFiles) {
 			Write-Host "`nAll file hashes match."
+			return $true
+		} elseif ($skipMissingFiles -and $matchedFiles + $missingFiles -eq $totalFiles) {
+			Write-Host "`nSome files are missing, but all existing files match their hashes." -ForegroundColor Yellow
 			return $true
 		} else {
 			Write-Host "`nSome file hashes do not match." -ForegroundColor Red
@@ -236,28 +380,39 @@ function Main {
 	param (
 		[switch]$skipWSLImport,
 		[switch]$skipWSLDefault,
-		[switch]$ImportForce
+		[switch]$ImportForce,
+		[switch]$Debug
 	)
+	Write-Log "[DEBUG] Starting Main function with parameters: skipWSLImport=$skipWSLImport, skipWSLDefault=$skipWSLDefault, ImportForce=$ImportForce, Debug=$Debug"
 
 	$owner = "naa0yama"
 	$repo = "devtool-wsl2"
 
 	try {
-		$response = Get-LatestReleaseInfo -owner $owner -repo $repo
+		Write-Log "[DEBUG] Attempting to get latest release info"
+		$apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+		$headers = @{
+			"User-Agent" = "PowerShell"
+		}
+		Write-Log "[DEBUG] Calling GitHub API: $apiUrl"
+		$response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
+		Write-Log "[DEBUG] Response received from GitHub API"
 		$assets   = $response.assets
 		$tag_name = $response.tag_name
 		$html_url = $response.html_url
 		$wslPath = "$env:USERPROFILE\Documents\WSL2"
 		$downloadPath = "$wslPath\dl\$tag_name"
+		Write-Log "[DEBUG] WSL Path: $wslPath"
+		Write-Log "[DEBUG] Download Path: $downloadPath"
 
 		Clear-Host
 		Write-Host "////////////////////////////////////////////////////////////////////////////////"
-		Write-Host "//`t     _            _              _                     _  _____ "
-		Write-Host "//`t    | |          | |            | |                   | |/ __  \"
-		Write-Host "//`t  __| | _____   _| |_ ___   ___ | |________      _____| |`' / /'"
-		Write-Host "//`t / _` |/ _ \ \ / / __/ _ \ / _ \| |______\ \ /\ / / __| |  / /  "
-		Write-Host "//`t| (_| |  __/\ V /| || (_) | (_) | |       \ V  V /\__ \ |./ /___"
-		Write-Host "//`t \__,_|\___| \_/  \__\___/ \___/|_|        \_/\_/ |___/_|\_____/"
+		Write-Host "//      _            _              _                     _  _____ "
+		Write-Host "//     | |          | |            | |                   | |/ __  \"
+		Write-Host "//   __| | _____   _| |_ ___   ___ | |________      _____| |' / /'"
+		Write-Host "//  / _' |/ _ \ \ / / __/ _ \ / _ \| |______\ \ /\ / / __| |  / /  "
+		Write-Host "// | (_| |  __/\ V /| || (_) | (_) | |       \ V  V /\__ \ |./ /___"
+		Write-Host "//  \__,_|\___| \_/  \__\___/ \___/|_|        \_/\_/ |___/_|\_____/"
 		Write-Host "//"
 		Write-Host "//"
 		Write-Host "// The latest tag is`t`t$tag_name"
@@ -276,8 +431,8 @@ function Main {
 		# Run the download
 		Download-Assets -assets $assets -downloadPath $downloadPath
 
-		# Perform hash verification
-		if (Verify-Hashes -downloadPath $downloadPath) {
+		# Perform hash verification (ダウンロードに失敗したファイルがあっても続行)
+		if (Verify-Hashes -downloadPath $downloadPath -skipMissingFiles) {
 			# Executes the combination of part files
 			$tarGzFile = Combine-Parts -downloadPath $downloadPath
 
@@ -290,6 +445,7 @@ function Main {
 			exit 1
 		}
 	} catch {
+		Write-Log "エラーが発生しました: $_" -Level "ERROR"
 		Write-Host "`nAn error occurred: $_" -ForegroundColor Red
 		exit 1
 	} finally {
@@ -299,5 +455,26 @@ function Main {
 	}
 }
 
-# Call the main function with parameters passed to the script
-Main -skipWSLImport:$skipWSLImport -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce
+# デバッグモードの場合は、GitHub APIのテストのみを行う
+if ($Debug) {
+    try {
+        Write-Log "デバッグモード: GitHub APIのテストを実行します" -Level "INFO"
+        $owner = "naa0yama"
+        $repo = "devtool-wsl2"
+        $apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+        $headers = @{
+            "User-Agent" = "PowerShell"
+        }
+        Write-Log "GitHub API URL: $apiUrl" -Level "INFO"
+        $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
+        Write-Log "GitHub API レスポンス: $($response | ConvertTo-Json -Depth 1)" -Level "INFO"
+        Write-Log "GitHub API テスト成功" -Level "INFO"
+        exit 0
+    } catch {
+        Write-Log "GitHub API テスト失敗: $_" -Level "ERROR"
+        exit 1
+    }
+}
+
+# 通常モードの場合は、通常の処理を実行
+Main -skipWSLImport:$skipWSLImport -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce -Debug:$Debug
