@@ -6,7 +6,7 @@ ARG DEBIAN_FRONTEND=noninteractive \
     \
     ASDF_VERSION="v0.16.7" \
     BIOME_VERSION="cli/v1.8.3" \
-    WSL2SSHAGENT_VERSION="v0.9.5"
+    WSL2SSHAGENT_VERSION="v0.9.6"
 
 
 #- -----------------------------------------------------------------------------
