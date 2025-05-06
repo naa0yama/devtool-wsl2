@@ -292,6 +292,26 @@ RUN set -eux && \
     type -p rg && \
     type -p topgrade
 
+
+# .gitconfig
+RUN <<EOF
+cat <<- _DOC_ >> ~/.bashrc
+
+# Copy "~/.gitconfig" from Windows if it doesn't exist
+if [ ! -f "\${HOME}/.gitconfig" ]; then
+  __USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
+
+  echo "Copy .gitconfig from Windows"
+  cp -v "\${__USERPROFILE}/.gitconfig" ~/
+fi
+
+_DOC_
+
+mkdir -p ~/.ssh
+chmod 0700 ~/.ssh
+
+EOF
+
 # wsl2-ssh-agent Config
 RUN <<EOF
 cat <<- _DOC_ >> ~/.bashrc
