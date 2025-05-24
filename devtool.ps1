@@ -332,7 +332,7 @@ function Import-WSL {
 		if ($defaultDistro) {
 			Write-Host "Current default WSL distribution: $defaultDistro"
 			Write-Host "Running backup script on $defaultDistro..."
-			wsl -d $defaultDistro bash /usr/bin/local/backup.sh
+			wsl -d $defaultDistro bash /usr/local/bin/backup.sh
 			Write-Host "Backup script executed successfully on $defaultDistro."
 		} else {
 			Write-Host "No default WSL distribution found." -ForegroundColor Yellow
