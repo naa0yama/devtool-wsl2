@@ -325,7 +325,7 @@ echo "Restore completed: \${__LAST_DUMP}"
 
 _DOC_
 
-cat <<- _DOC_ >> /usr/bin/local/backup.sh
+cat <<- _DOC_ >> /usr/local/bin/backup.sh
 #!/usr/bin/env bash
 set -eu
 
@@ -373,7 +373,7 @@ echo "Backup completed: \${WSL2_DIR}/Backups/\${FILENAME_DUMP}"
 
 _DOC_
 
-chmod +x /usr/bin/local/backup.sh
+chmod +x /usr/local/bin/backup.sh
 
 mkdir -p ~/.ssh
 chmod 0700 ~/.ssh
