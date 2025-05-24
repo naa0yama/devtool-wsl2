@@ -306,6 +306,23 @@ if [ ! -f "\${HOME}/.gitconfig" ]; then
   cp -v "\${__USERPROFILE}/.gitconfig" ~/
 fi
 
+# Restore dump
+if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
+  __WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2/"
+  __LAST_DUMP="\$(ls -t "\${__WSL2_DIR}/Backups/" | head -n1)"
+
+  echo "# =============================================================================="
+  echo "# devtool-wsl2 restore tools"
+  echo "#"
+  echo "# WSL2 Directory: \"\${__WSL2_DIR}\""
+  echo "# Last Dump     : \"\${__LAST_DUMP}\""
+  echo "# =============================================================================="
+
+  pv "\${__WSL2_DIR}/Backups/\${__LAST_DUMP}" | tar xf - -C "\${HOME}" --strip-components=2
+  date '+%Y-%m-%dT%H%M%S%z' > "\${HOME}/.devtool-wsl2.lock"
+fi
+echo "Restore completed: \${__LAST_DUMP}"
+
 _DOC_
 
 cat <<- _DOC_ >> /usr/bin/local/backup.sh
@@ -355,6 +372,7 @@ rsync -avP "/tmp/\${FILENAME_DUMP}" "\${WSL2_DIR}/Backups"
 echo "Backup completed: \${WSL2_DIR}/Backups/\${FILENAME_DUMP}"
 
 _DOC_
+
 chmod +x /usr/bin/local/backup.sh
 
 mkdir -p ~/.ssh
