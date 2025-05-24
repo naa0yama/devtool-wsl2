@@ -317,6 +317,30 @@ function Import-WSL {
 		[bool]$ImportForce    = $false
 	)
 
+	Write-Host "`nExecuting backup script on current default WSL distribution..."
+	try {
+		$wslListOutput = wsl --list --verbose
+		$defaultDistro = $null
+		
+		foreach ($line in $wslListOutput) {
+			if ($line -match '^\s*\*\s*(\S+)') {
+				$defaultDistro = $matches[1]
+				break
+			}
+		}
+		
+		if ($defaultDistro) {
+			Write-Host "Current default WSL distribution: $defaultDistro"
+			Write-Host "Running backup script on $defaultDistro..."
+			wsl -d $defaultDistro bash /usr/bin/local/backup.sh
+			Write-Host "Backup script executed successfully on $defaultDistro."
+		} else {
+			Write-Host "No default WSL distribution found." -ForegroundColor Yellow
+		}
+	} catch {
+		Write-Host "Error executing backup script on default WSL distribution: $_" -ForegroundColor Red
+	}
+
 	if ($ImportForce) {
 		Write-Host "[ImportForce] is enabled. Listing WSL instances..."
 
