@@ -332,6 +332,7 @@ fi
 _DOC_
 EOF
 
+USER root
 RUN <<EOF
 set -eux
 
@@ -386,6 +387,7 @@ _DOC_
 chmod +x /usr/local/bin/backup.sh
 
 EOF
+USER ${DEFAULT_USERNAME}
 
 # wsl2-ssh-agent Config
 RUN <<EOF
