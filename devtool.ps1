@@ -33,7 +33,7 @@ function Write-Log {
 if (Test-Path $logFile) {
 	Remove-Item $logFile -Force
 }
-Write-Log "スクリプト実行開始"
+Write-Log "Script execution begins"
 
 function Get-LatestReleaseInfo {
 	param (
@@ -252,29 +252,29 @@ function Verify-Hashes {
 			if (Test-Path $filePath) {
 				$fileHash = Get-FileHash -Path $filePath -Algorithm SHA256
 				if ($fileHash.Hash -eq $hash.Hash) {
-					Write-Host "[$($i + 1)/$totalFiles] $($hash.File) hash matches."
+					Write-Log "[$($i + 1)/$totalFiles] $($hash.File) hash matches."
 					$matchedFiles++
 				} else {
-					Write-Host "[$($i + 1)/$totalFiles] $($hash.File) hash does not match."
+					Write-Log "[$($i + 1)/$totalFiles] $($hash.File) hash does not match."
 				}
 			} else {
-				Write-Host "[$($i + 1)/$totalFiles] $($hash.File) not found."
+				Write-Log "[$($i + 1)/$totalFiles] $($hash.File) not found."
 				$missingFiles++
 			}
 		}
 
 		if ($matchedFiles -eq $totalFiles) {
-			Write-Host "`nAll file hashes match."
+			Write-Log "`nAll file hashes match."
 			return $true
 		} elseif ($skipMissingFiles -and $matchedFiles + $missingFiles -eq $totalFiles) {
-			Write-Host "`nSome files are missing, but all existing files match their hashes." -ForegroundColor Yellow
+			Write-Log "`nSome files are missing, but all existing files match their hashes." -ForegroundColor Yellow
 			return $true
 		} else {
-			Write-Host "`nSome file hashes do not match." -ForegroundColor Red
+			Write-Log "`nSome file hashes do not match." -ForegroundColor Red
 			return $false
 		}
 	} else {
-		Write-Host "`nsha256sum.txt file not found." -ForegroundColor Red
+		Write-Log "`nsha256sum.txt file not found." -ForegroundColor Red
 		return $false
 	}
 }
@@ -287,7 +287,7 @@ function Combine-Parts {
 	if ($partFiles.Count -gt 0) {
 		$baseFileName = [System.IO.Path]::GetFileNameWithoutExtension($partFiles[0].Name).Replace(".part", "")
 		$outputFile = Join-Path $downloadPath $baseFileName
-		Write-Host "Combining parts into $outputFile"
+		Write-Log "Combining parts into $outputFile"
 
 		$outputStream = [System.IO.File]::Create($outputFile)
 		foreach ($partFile in $partFiles) {
@@ -300,10 +300,10 @@ function Combine-Parts {
 			$inputStream.Close()
 		}
 		$outputStream.Close()
-		Write-Host "Combination Complete"
+		Write-Log "Combination Complete"
 		return $outputFile
 	} else {
-		Write-Host "No part files found to combine."
+		Write-Log "No part files found to combine."
 		return $null
 	}
 }
@@ -317,7 +317,7 @@ function Import-WSL {
 		[bool]$ImportForce    = $false
 	)
 
-	Write-Host "`nExecuting backup script on current default WSL distribution..."
+	Write-Log "`nExecuting backup script on current default WSL distribution..."
 	try {
 		$wslListOutput = wsl --list --verbose
 		$defaultDistro = $null
@@ -330,19 +330,19 @@ function Import-WSL {
 		}
 
 		if ($defaultDistro) {
-			Write-Host "Current default WSL distribution: $defaultDistro"
-			Write-Host "Running backup script on $defaultDistro..."
+			Write-Log "Current default WSL distribution: $defaultDistro"
+			Write-Log "Running backup script on $defaultDistro..."
 			wsl -d $defaultDistro bash /usr/local/bin/backup.sh
-			Write-Host "Backup script executed successfully on $defaultDistro."
+			Write-Log "Backup script executed successfully on $defaultDistro."
 		} else {
-			Write-Host "No default WSL distribution found." -ForegroundColor Yellow
+			Write-Log "No default WSL distribution found." -ForegroundColor Yellow
 		}
 	} catch {
-		Write-Host "Error executing backup script on default WSL distribution: $_" -ForegroundColor Red
+		Write-Log "Error executing backup script on default WSL distribution: $_" -ForegroundColor Red
 	}
 
 	if ($ImportForce) {
-		Write-Host "[ImportForce] is enabled. Listing WSL instances..."
+		Write-Log "[ImportForce] is enabled. Listing WSL instances..."
 
 		$wslOutput = wsl --list --quiet
 		$wslLines = $wslOutput -split "`n"
@@ -351,9 +351,9 @@ function Import-WSL {
 			if ($_line -match '^dwsl2-*') {
 				try {
 					wsl --unregister $_line | Out-Null
-					Write-Host "[ImportForce] Successfully unregistered [$_line]"
+					Write-Log "[ImportForce] Successfully unregistered [$_line]"
 				} catch {
-					Write-Host "[ImportForce] Failed to unregister [$_line] : $_"
+					Write-Log "[ImportForce] Failed to unregister [$_line] : $_"
 				}
 			}
 		}
@@ -364,12 +364,12 @@ function Import-WSL {
 		New-Item -ItemType Directory -Path $importPath | Out-Null
 	}
 
-	Write-Host "`nImporting WSL"
+	Write-Log "`nImporting WSL"
 	wsl --import dwsl2-$tag_name $importPath $tarGzFile --version 2
-	Write-Host "`nWSL imported successfully."
+	Write-Log "`nWSL imported successfully."
 
 	if (-not $skipWSLDefault) {
-		Write-Host "`nSetting WSL default Distribution"
+		Write-Log "`nSetting WSL default Distribution"
 		wsl --set-default dwsl2-$tag_name
 	}
 }
@@ -380,12 +380,12 @@ function Create-Dir {
 		[string]$downloadPath
 	)
 	if (-Not (Test-Path -Path $wslPath)) {
-		Write-Host "Create WSL2 path $wslPath"
+		Write-Log "Create WSL2 path $wslPath"
 		New-Item -ItemType Directory -Path $wslPath | Out-Null
 	}
 
 	if (-Not (Test-Path -Path $downloadPath)) {
-		Write-Host "Create downloaded path $downloadPath"
+		Write-Log "Create downloaded path $downloadPath"
 		New-Item -ItemType Directory -Path $downloadPath | Out-Null
 	}
 }
@@ -395,9 +395,9 @@ function Cleanup-DownloadPath {
 		[string]$downloadPath
 	)
 
-	Write-Host "Cleanup ..."
+	Write-Log "Cleanup ..."
 	Remove-Item -Path $downloadPath -Recurse
-	Write-Host "`nCleaned up parent directory: $downloadPath"
+	Write-Log "`nCleaned up parent directory: $downloadPath"
 }
 
 function Main {
@@ -407,6 +407,7 @@ function Main {
 		[switch]$ImportForce,
 		[switch]$Debug
 	)
+	$ownerRepo = "naa0yama/devtool-wsl2"
 	Write-Log "[DEBUG] Starting Main function with parameters: skipWSLImport=$skipWSLImport, skipWSLDefault=$skipWSLDefault, ImportForce=$ImportForce, Debug=$Debug"
 
 	$owner = "naa0yama"
@@ -418,7 +419,8 @@ function Main {
 		$headers = @{
 			"User-Agent" = "PowerShell"
 		}
-		Write-Log "[DEBUG] Calling GitHub API: $apiUrl"
+		$apiUrlMessage = "GitHub API: " + $apiUrl
+		Write-Log "[DEBUG] Calling $apiUrlMessage"
 		$response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
 		Write-Log "[DEBUG] Response received from GitHub API"
 		$assets   = $response.assets
@@ -430,25 +432,25 @@ function Main {
 		Write-Log "[DEBUG] Download Path: $downloadPath"
 
 		Clear-Host
-		Write-Host "////////////////////////////////////////////////////////////////////////////////"
-		Write-Host "//      _            _              _                     _  _____ "
-		Write-Host "//     | |          | |            | |                   | |/ __  \"
-		Write-Host "//   __| | _____   _| |_ ___   ___ | |________      _____| |' / /'"
-		Write-Host "//  / _' |/ _ \ \ / / __/ _ \ / _ \| |______\ \ /\ / / __| |  / /  "
-		Write-Host "// | (_| |  __/\ V /| || (_) | (_) | |       \ V  V /\__ \ |./ /___"
-		Write-Host "//  \__,_|\___| \_/  \__\___/ \___/|_|        \_/\_/ |___/_|\_____/"
-		Write-Host "//"
-		Write-Host "//"
-		Write-Host "// The latest tag is`t`t$tag_name"
-		Write-Host "// The latest Release Pages is`t$html_url"
-		Write-Host "// WSL2 Path`t`t`t$wslPath"
-		Write-Host "// Downloaded Path`t`t$downloadPath"
-		Write-Host "//"
-		Write-Host "// Options:"
-		Write-Host "//`tskipWSLImport`t`t$skipWSLImport"
-		Write-Host "//`tskipWSLDefault`t`t$skipWSLDefault"
-		Write-Host "//`tImportForce`t`t$ImportForce"
-		Write-Host "//"
+		Write-Log "////////////////////////////////////////////////////////////////////////////////"
+		Write-Log "//      _            _              _                     _  _____ "
+		Write-Log '//     | |          | |            | |                   | |/ __  \'
+		Write-Log "//   __| | _____   _| |_ ___   ___ | |________      _____| |' / /'"
+		Write-Log "//  / _' |/ _ \ \ / / __/ _ \ / _ \| |______\ \ /\ / / __| |  / /  "
+		Write-Log "// | (_| |  __/\ V /| || (_) | (_) | |       \ V  V /\__ \ |./ /___"
+		Write-Log "//  \__,_|\___| \_/  \__\___/ \___/|_|        \_/\_/ |___/_|\_____/"
+		Write-Log "//"
+		Write-Log "//"
+		Write-Log "// The latest tag is`t`t$tag_name"
+		Write-Log "// The latest Release Pages is`t$html_url"
+		Write-Log "// WSL2 Path`t`t`t$wslPath"
+		Write-Log "// Downloaded Path`t`t$downloadPath"
+		Write-Log "//"
+		Write-Log "// Options:"
+		Write-Log "//`tskipWSLImport`t`t$skipWSLImport"
+		Write-Log "//`tskipWSLDefault`t`t$skipWSLDefault"
+		Write-Log "//`tImportForce`t`t$ImportForce"
+		Write-Log "//"
 
 		Create-Dir $wslPath $downloadPath
 
@@ -465,12 +467,11 @@ function Main {
 					-tarGzFile $tarGzFile -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce
 			}
 		} else {
-			Write-Host "`n`nHash verification failed. Aborting combination process." -ForegroundColor Red
+			Write-Log "`n`nHash verification failed. Aborting combination process." -ForegroundColor Red
 			exit 1
 		}
 	} catch {
-		Write-Log "エラーが発生しました: $_" -Level "ERROR"
-		Write-Host "`nAn error occurred: $_" -ForegroundColor Red
+		Write-Log "`nAn error occurred: $_" -ForegroundColor Red
 		exit 1
 	} finally {
 		if (-not $skipWSLImport) {
@@ -482,14 +483,15 @@ function Main {
 # デバッグモードの場合は、GitHub APIのテストのみを行う
 if ($Debug) {
     try {
-        Write-Log "デバッグモード: GitHub APIのテストを実行します" -Level "INFO"
+        Write-Log "Debug mode: Runs tests against the GitHub API" -Level "INFO"
         $owner = "naa0yama"
         $repo = "devtool-wsl2"
         $apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
         $headers = @{
             "User-Agent" = "PowerShell"
         }
-        Write-Log "GitHub API URL: $apiUrl" -Level "INFO"
+        $apiUrlInfo = "GitHub API URL: " + $apiUrl
+        Write-Log $apiUrlInfo -Level "INFO"
         $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
         Write-Log "GitHub API レスポンス: $($response | ConvertTo-Json -Depth 1)" -Level "INFO"
         Write-Log "GitHub API テスト成功" -Level "INFO"
