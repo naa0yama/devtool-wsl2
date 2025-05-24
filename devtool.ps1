@@ -19,19 +19,19 @@ $logFile = "$env:USERPROFILE\devtool-error.log"
 
 # ログ出力関数
 function Write-Log {
-    param (
-        [string]$Message,
-        [string]$Level = "INFO"
-    )
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "[$timestamp] [$Level] $Message"
-    Add-Content -Path $logFile -Value $logMessage
-    Write-Host $logMessage
+	param (
+		[string]$Message,
+		[string]$Level = "INFO"
+	)
+	$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+	$logMessage = "[$timestamp] [$Level] $Message"
+	Add-Content -Path $logFile -Value $logMessage
+	Write-Host $logMessage
 }
 
 # エラーログをクリア
 if (Test-Path $logFile) {
-    Remove-Item $logFile -Force
+	Remove-Item $logFile -Force
 }
 Write-Log "スクリプト実行開始"
 
@@ -321,18 +321,18 @@ function Import-WSL {
 	try {
 		$wslListOutput = wsl --list --verbose
 		$defaultDistro = $null
-		
+
 		foreach ($line in $wslListOutput) {
 			if ($line -match '^\s*\*\s*(\S+)') {
 				$defaultDistro = $matches[1]
 				break
 			}
 		}
-		
+
 		if ($defaultDistro) {
 			Write-Host "Current default WSL distribution: $defaultDistro"
 			Write-Host "Running backup script on $defaultDistro..."
-			wsl -d $defaultDistro bash /usr/bin/local/backup.sh
+			wsl -d $defaultDistro bash /usr/local/bin/backup.sh
 			Write-Host "Backup script executed successfully on $defaultDistro."
 		} else {
 			Write-Host "No default WSL distribution found." -ForegroundColor Yellow
