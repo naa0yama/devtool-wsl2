@@ -311,17 +311,19 @@ if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
   __WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
   __LAST_DUMP="\$(ls -t "\${__WSL2_DIR}/Backups/" | head -n1)"
 
-  echo "# =============================================================================="
-  echo "# devtool-wsl2 restore tools"
-  echo "#"
-  echo "# WSL2 Directory: \"\${__WSL2_DIR}\""
-  echo "# Last Dump     : \"\${__LAST_DUMP}\""
-  echo "# =============================================================================="
+  if [ ! -n "\${__LAST_DUMP}" ]; then
+    echo "# =============================================================================="
+    echo "# devtool-wsl2 restore tools"
+    echo "#"
+    echo "# WSL2 Directory: \"\${__WSL2_DIR}\""
+    echo "# Last Dump     : \"\${__LAST_DUMP}\""
+    echo "# =============================================================================="
 
-  pv "\${__WSL2_DIR}/Backups/\${__LAST_DUMP}" | tar xf - -C "\${HOME}" --strip-components=2
-  date '+%Y-%m-%dT%H%M%S%z' > "\${HOME}/.devtool-wsl2.lock"
+    pv "\${__WSL2_DIR}/Backups/\${__LAST_DUMP}" | tar xf - -C "\${HOME}" --strip-components=2
+    date '+%Y-%m-%dT%H%M%S%z' > "\${HOME}/.devtool-wsl2.lock"
+    echo "Restore completed: \${__LAST_DUMP}"
+  fi
 fi
-echo "Restore completed: \${__LAST_DUMP}"
 
 _DOC_
 
