@@ -315,7 +315,7 @@ if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
   __WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
   __LAST_DUMP="\$(ls -t "\${__WSL2_DIR}/Backups/" | head -n1)"
 
-  if [ ! -n "\${__LAST_DUMP}" ]; then
+  if [ -n "\${__LAST_DUMP}" ]; then
     echo "# =============================================================================="
     echo "# devtool-wsl2 restore tools"
     echo "#"
