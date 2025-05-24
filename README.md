@@ -3,6 +3,12 @@
 WSL2 の開発環境を自動構築するセット  
 以前は、 WSL2 に都度コマンドを打って環境構築していたが似たような環境が複数必要になるため自動化し環境構築にかかる時間を省力化した。
 
+> [!IMPORTANT]
+> 2025/05/24 に Backup/Restore を実装した。これにより devtool.ps1 を実行時に `/home/user` 配下を一定の条件で  
+> tar で固め `%USERPROFILE%/Documents/WSL2/Backups` に吐き出します。 **一時保管ため非圧縮です**  
+> Restore は WSL2 のディストリビューション初回起動時に最新の tar ファイルを利用し展開される。  
+> 展開後、 `$HOME/.devtool-wsl2.lock` を作成することで次回以降は実施されません
+
 ## Software
 
 * CLI commands
