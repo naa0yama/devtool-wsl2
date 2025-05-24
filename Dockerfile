@@ -308,7 +308,7 @@ fi
 
 # Restore dump
 if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
-  __WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2/"
+  __WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
   __LAST_DUMP="\$(ls -t "\${__WSL2_DIR}/Backups/" | head -n1)"
 
   echo "# =============================================================================="
