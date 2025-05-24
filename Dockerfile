@@ -279,6 +279,8 @@ EOF
 
 # rust tools path append
 RUN <<EOF
+set -eux
+
 cat <<- _DOC_ >> ~/.bashrc
 #asdf rust command
 export PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin
@@ -296,6 +298,8 @@ RUN set -eux && \
 
 # .gitconfig
 RUN <<EOF
+set -eux
+
 cat <<- _DOC_ >> ~/.bashrc
 
 # Copy "~/.gitconfig" from Windows if it doesn't exist
@@ -326,6 +330,9 @@ if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
 fi
 
 _DOC_
+
+RUN <<EOF
+set -eux
 
 cat <<- _DOC_ >> /usr/local/bin/backup.sh
 #!/usr/bin/env bash
@@ -377,13 +384,12 @@ _DOC_
 
 chmod +x /usr/local/bin/backup.sh
 
-mkdir -p ~/.ssh
-chmod 0700 ~/.ssh
-
 EOF
 
 # wsl2-ssh-agent Config
 RUN <<EOF
+set -eux
+
 cat <<- _DOC_ >> ~/.bashrc
 
 # Bash configuration for wsl2-ssh-agent
@@ -400,6 +406,8 @@ EOF
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root
 RUN <<EOF
+set -eux
+
 cat <<- _DOC_ > /etc/wsl.conf
 [automount]
 enabled=true
