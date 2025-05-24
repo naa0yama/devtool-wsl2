@@ -330,6 +330,7 @@ if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
 fi
 
 _DOC_
+EOF
 
 RUN <<EOF
 set -eux
