@@ -381,7 +381,8 @@ function Create-Dir {
 	)
 	if (-Not (Test-Path -Path $wslPath)) {
 		Write-Log "Create WSL2 path $wslPath"
-		New-Item -ItemType Directory -Path $wslPath | Out-Null
+		New-Item -ItemType Directory -Path $wslPath           -ErrorAction SilentlyContinue | Out-Null
+		New-Item -ItemType Directory -Path "$wslPath\Backups" -ErrorAction SilentlyContinue | Out-Null
 	}
 
 	if (-Not (Test-Path -Path $downloadPath)) {
