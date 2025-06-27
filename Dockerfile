@@ -155,6 +155,15 @@ RUN set -eux && \
     type -p wsl2-ssh-agent && \
     rm -rf ${__TEMPDIR}
 
+# git-secrets
+RUN set -eux && \
+    cd /tmp && \
+    git clone --depth 1 https://github.com/awslabs/git-secrets.git && \
+    cd git-secrets && \
+    make install && \
+    type -p /usr/local/bin/git-secrets && \
+    rm -rf /tmp/git-secrets
+
 USER ${DEFAULT_USERNAME}
 
 
