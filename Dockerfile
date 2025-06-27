@@ -311,14 +311,6 @@ set -eux
 
 cat <<- _DOC_ >> ~/.bashrc
 
-# Copy "~/.gitconfig" from Windows if it doesn't exist
-if [ ! -f "\${HOME}/.gitconfig" ]; then
-  __USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
-
-  echo "Copy .gitconfig from Windows"
-  cp -v "\${__USERPROFILE}/.gitconfig" ~/
-fi
-
 # Restore dump
 if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
   __WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
@@ -336,6 +328,14 @@ if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
     date '+%Y-%m-%dT%H%M%S%z' > "\${HOME}/.devtool-wsl2.lock"
     echo "Restore completed: \${__LAST_DUMP}"
   fi
+fi
+
+# Copy "~/.gitconfig" from Windows if it doesn't exist
+if [ ! -f "\${HOME}/.gitconfig" ]; then
+  __USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
+
+  echo "Copy .gitconfig from Windows"
+  cp -v "\${__USERPROFILE}/.gitconfig" ~/
 fi
 
 _DOC_
