@@ -6,14 +6,14 @@ changelog:
 
   categories:
     - title: Features 🎉
-      labels: ['enhancement']
+      labels: ["enhancement"]
     - title: Image
-      labels: ['core']
+      labels: ["core"]
     - title: Bug Fixes 🐌
-      labels: ['bug']
+      labels: ["bug"]
     - title: Documentation 🗒️
-      labels: ['documentation']
+      labels: ["documentation"]
     - title: Dependency Updates 👒
-      labels: ['renovate']
+      labels: ["renovate"]
     - title: Other Changes
-      labels: ['*']
+      labels: ["*"]

@@ -1,41 +1,29 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "local>naa0yama/renovate-config"
-  ],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "fileMatch": [
-        "Dockerfile"
-      ],
-      "matchStrings": [
-        "ASDF_VERSION=\"(?<currentValue>.*?)\""
-      ],
-      "datasourceTemplate": "github-releases",
-      "depNameTemplate": "asdf-vm/asdf"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": [
-        "Dockerfile"
-      ],
-      "matchStrings": [
-        "BIOME_VERSION=\"(?<currentValue>.*?)\""
-      ],
-      "datasourceTemplate": "github-releases",
-      "depNameTemplate": "biomejs/biome"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": [
-        "Dockerfile"
-      ],
-      "matchStrings": [
-        "WSL2SSHAGENT_VERSION=\"(?<currentValue>.*?)\""
-      ],
-      "datasourceTemplate": "github-releases",
-      "depNameTemplate": "mame/wsl2-ssh-agent"
-    }
-  ]
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": [
+		"local>naa0yama/renovate-config"
+	],
+	"packageRules": [
+		{
+			"matchUpdateTypes": [
+				"major",
+				"minor",
+				"patch"
+			],
+			"automerge": false,
+			"platformAutomerge": false,
+			"ignoreTests": false
+		}
+	],
+	"customManagers": [
+		{
+			"customType": "regex",
+			"fileMatch": [
+				"^Dockerfile(.*)$"
+			],
+			"matchStrings": [
+				"## renovate: datasource=(?<datasource>(github-releases|github-tags|git-tags|npm))\\spackageName=(?<packageName>.+?)(versioning=(?<versioning>[a-z-]+?)|\\s?)+\\s(?:ENV|ARG) .+?_VERSION=(?<currentValue>.+?)\\s"
+			]
+		}
+	]
 }
