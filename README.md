@@ -1,6 +1,6 @@
 # devtool-WSL2
 
-WSL2 の開発環境を自動構築するセット  
+WSL2 の開発環境を自動構築するセット\
 以前は、 WSL2 に都度コマンドを打って環境構築していたが似たような環境が複数必要になるため自動化し環境構築にかかる時間を省力化した。
 
 > [!IMPORTANT]
@@ -8,27 +8,28 @@ WSL2 の開発環境を自動構築するセット
 
 ## Software
 
-* CLI commands
-  * bash
-  * ca-certificates
-  * curl
-  * git
-  * gpg-agent
-  * man
-  * mtr
-  * nano
-  * sudo
-  * tcpdump
-  * traceroute
-  * unzip
-  * vim
-  * wget
+- CLI commands
+  - bash
+  - ca-certificates
+  - curl
+  - git
+  - gpg-agent
+  - man
+  - mtr
+  - nano
+  - sudo
+  - tcpdump
+  - traceroute
+  - unzip
+  - vim
+  - wget
 
-| Common software                                               | Latest software version                                                  |
-| :------------------------------------------------------------ | :----------------------------------------------------------------------- |
-| [Docker Engine](https://gitub.com/moby/moby)                  | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)             |
-| [asdf](https://github.com/asdf-vm/asdf)                       | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)          |
-| [mame/wsl2-ssh-agent](https://github.com/mame/wsl2-ssh-agent) | ![GitHub Tag](https://img.shields.io/github/v/tag/mame/wsl2-ssh-agent)   |
+| Common software                                               | Latest software version                                                |
+| :------------------------------------------------------------ | :--------------------------------------------------------------------- |
+| [Docker Engine](https://gitub.com/moby/moby)                  | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)           |
+| [asdf](https://github.com/asdf-vm/asdf)                       | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)        |
+| [dprint](https://github.com/dprint/dprint)                    | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)       |
+| [mame/wsl2-ssh-agent](https://github.com/mame/wsl2-ssh-agent) | ![GitHub Tag](https://img.shields.io/github/v/tag/mame/wsl2-ssh-agent) |
 
 | asdf Plugins                                        | asdf Plugin URL                                                                   | Latest software version                                                 |
 | :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------- |
@@ -56,28 +57,27 @@ WSL2 の開発環境を自動構築するセット
 
 ```powershell
 powershell -ExecutionPolicy Unrestricted -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main/devtool.ps1' -OutFile 'devtool.ps1'; .\devtool.ps1"
-
 ```
 
 フラグオプションをいくつか用意しています
 
-* `-skipWSLImport`
-  * WSL へ `Import` を実施しません。
-  * ダウンロードのみを実施し、スクリプト終了時のダウンロードフォルダークリーンアップ処理も実施しません。
-* `-skipWSLDefault`
-  * WSL へ `Import` した場合に `wsl --set-default <DistributionName>` の実行をしません
+- `-skipWSLImport`
+  - WSL へ `Import` を実施しません。
+  - ダウンロードのみを実施し、スクリプト終了時のダウンロードフォルダークリーンアップ処理も実施しません。
+- `-skipWSLDefault`
+  - WSL へ `Import` した場合に `wsl --set-default <DistributionName>` の実行をしません
 
 > [!IMPORTANT]
-> * `-ImportForce`
->   * 同じ tag の WSL イメージが登録されている場合、登録解除(`wsl --unregister`)を実施し強制的に更新します
-> WSL イメージは削除されますので注意してください
+>
+> - `-ImportForce`
+>   - 同じ tag の WSL イメージが登録されている場合、登録解除(`wsl --unregister`)を実施し強制的に更新します
+>     WSL イメージは削除されますので注意してください
 
-Import 結果を確認します  
+Import 結果を確認します\
 `dwsl2-<tag>` があれば Import 出来ています。
 
 ```powershell
 wsl -l -v
-
 ```
 
 ```powershell
@@ -86,20 +86,18 @@ wsl -l -v
 * Ubuntu-22.04    Running         2
   dwsl2-8718ff1   Stopped         2
   Ubuntu          Stopped         2
-
 ```
 
-実際に起動してみます。  
-このセクションではデフォルトに設定してないためディストリビューション指定で起動します。  
+実際に起動してみます。\
+このセクションではデフォルトに設定してないためディストリビューション指定で起動します。\
 起動出来ると Bash が起動します。
 
 ```powershelll
 wsl -d dwsl2-8718ff1
 user@dead-desk1:~$
-
 ```
 
-asdf が使えるか確認しておきましょう。  
+asdf が使えるか確認しておきましょう。\
 `asdf current` で確認出来ます。
 
 ```powershelll
@@ -119,9 +117,9 @@ tmux            3.4             /home/user/.tool-versions
 
 ### デフォルトに設定する場合
 
-この手順では default に設定していないためディストリビューションを指定して起動する必要があります。  
-手間を省くために defualt に設定すると `wsl` コマンドで起動してくる事になります  
-下記の例では `dwsl2-8718ff1` を defualt に設定します。  
+この手順では default に設定していないためディストリビューションを指定して起動する必要があります。\
+手間を省くために defualt に設定すると `wsl` コマンドで起動してくる事になります\
+下記の例では `dwsl2-8718ff1` を defualt に設定します。\
 `*` の付いている物が default 起動の WSL です。
 
 ```powershell
@@ -139,7 +137,6 @@ tmux            3.4             /home/user/.tool-versions
 * dwsl2-8718ff1   Stopped         2
   Ubuntu-22.04    Running         2
   Ubuntu          Stopped         2
-
 ```
 
 ### 登録解除する場合
@@ -149,5 +146,4 @@ tmux            3.4             /home/user/.tool-versions
 ```bash
 wsl -t dwsl2-8718ff1
 wsl --unregister dwsl2-8718ff1
-
 ```

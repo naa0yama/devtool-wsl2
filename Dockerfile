@@ -2,10 +2,14 @@
 #- - Global
 #- -----------------------------------------------------------------------------
 ARG DEBIAN_FRONTEND=noninteractive \
-	DEFAULT_USERNAME=user \
-	\
-	ASDF_VERSION="v0.18.0" \
-	WSL2SSHAGENT_VERSION="v0.9.6"
+	DEFAULT_USERNAME=user
+
+## renovate: datasource=github-releases packageName=asdf-vm/asdf versioning=semver
+ARG ASDF_VERSION="v0.18.0"
+## renovate: datasource=github-releases packageName=edprint/dprint versioning=semver
+ARG DPRINT_VERSION="0.50.0"
+## renovate: datasource=github-releases packageName=mame/wsl2-ssh-agent versioning=semver
+ARG WSL2SSHAGENT_VERSION="v0.9.6"
 
 # retry dns and some http codes that might be transient errors
 ARG CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
@@ -16,10 +20,12 @@ ARG CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
 #- -----------------------------------------------------------------------------
 FROM ubuntu:24.04 AS base
 
-ARG DEFAULT_UID=1100 \
+ARG CURL_OPTS \
+	DEFAULT_UID=1100 \
 	DEFAULT_GID=1100 \
 	DEFAULT_USERNAME \
 	ASDF_VERSION \
+	DPRINT_VERSION \
 	WSL2SSHAGENT_VERSION
 
 ENV TZ=Asia/Tokyo
@@ -28,11 +34,10 @@ SHELL [ "/bin/bash", "-c" ]
 
 RUN echo "**** set Timezone ****" && \
 	set -euxo pipefail && \
-	set -eux && \
 	ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN echo "**** Dependencies ****" && \
-	set -euxo pipefail && \
+	set -eux && \
 	apt-get -y update && \
 	apt-get -y upgrade && \
 	apt-get -y install --no-install-recommends unminimize && \
@@ -137,6 +142,18 @@ _DOC_
 EOF
 
 USER root
+
+RUN echo "**** Install dprint ****" && \
+	set -euxo pipefail && \
+	apt-get update && \
+	_download_url="$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
+	https://api.github.com/repos/dprint/dprint/releases/tags/${DPRINT_VERSION} | \
+	jq -r '.assets[] | select(.name | endswith("x86_64-unknown-linux-gnu.zip")) | .browser_download_url')" && \
+	_filename="$(basename "$_download_url")" && \
+	curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' -o "./${_filename}" "${_download_url}" && \
+	unzip "${_filename}" -d /usr/local/bin/ && \
+	type -p dprint && \
+	rm -rf "./${_filename}"
 
 RUN echo "**** Install wsl2-ssh-agent ****" && \
 	set -euxo pipefail && \
