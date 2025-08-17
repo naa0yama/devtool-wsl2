@@ -66,7 +66,7 @@ pre-commit:
           - name: dprint fmt
             run: dprint fmt --staged
             glob: "*.{json,jsonc,md,toml,yml,yaml}"
-            files: "{staged_files}"
+            files: git diff --name-only --diff-filter=d --staged
 
     - name: tests
       group: &build_check_group
@@ -76,7 +76,7 @@ pre-commit:
             interactive: true
             run: docker build -t tmp -f Dockerfile .
             glob: "Dockerfile"
-            files: "{staged_files}"
+            files: git diff --name-only --diff-filter=d --staged
 
 pre-push:
   parallel: false
