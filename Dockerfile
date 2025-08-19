@@ -45,6 +45,7 @@ RUN echo "**** Dependencies ****" && \
 	apt-get -y install --no-install-recommends \
 	automake \
 	bash \
+ 	bash-completion \
 	bind9-dnsutils \
 	bison \
 	build-essential \
