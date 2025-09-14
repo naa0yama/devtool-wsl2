@@ -36,7 +36,10 @@ RUN echo "**** set Timezone ****" && \
 	set -euxo pipefail && \
 	ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-RUN echo "**** Dependencies ****" && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	\
+	echo "**** Dependencies ****" && \
 	set -eux && \
 	apt-get -y update && \
 	apt-get -y upgrade && \
@@ -45,7 +48,7 @@ RUN echo "**** Dependencies ****" && \
 	apt-get -y install --no-install-recommends \
 	automake \
 	bash \
- 	bash-completion \
+	bash-completion \
 	bind9-dnsutils \
 	bison \
 	build-essential \
@@ -61,6 +64,8 @@ RUN echo "**** Dependencies ****" && \
 	iputils-tracepath \
 	jq \
 	less \
+	libevent-dev \
+	libncurses5-dev \
 	lsof \
 	man \
 	man-db \
@@ -77,12 +82,7 @@ RUN echo "**** Dependencies ****" && \
 	traceroute \
 	unzip \
 	vim \
-	wget && \
-	\
-	# Cleanup \
-	apt-get -y autoremove && \
-	apt-get -y clean && \
-	rm -rf /var/lib/apt/lists/*
+	wget
 
 RUN echo "**** Create user ****" && \
 	set -euxo pipefail && \
@@ -92,7 +92,10 @@ RUN echo "**** Create user ****" && \
 	passwd -d ${DEFAULT_USERNAME} && \
 	echo -e "${DEFAULT_USERNAME}\tALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${DEFAULT_USERNAME}
 
-RUN echo "**** Install Docker Engine ****" && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	\
+	echo "**** Install Docker Engine ****" && \
 	set -euxo pipefail && \
 	# Add Docker's official GPG key: \
 	install -m 0755 -d /etc/apt/keyrings && \
@@ -108,13 +111,9 @@ RUN echo "**** Install Docker Engine ****" && \
 	docker-ce-cli \
 	containerd.io \
 	docker-buildx-plugin \
-	docker-compose-plugin && \
-	usermod -aG docker "${DEFAULT_USERNAME}" && \
-	\
-	# Cleanup \
-	apt-get -y autoremove && \
-	apt-get -y clean && \
-	rm -rf /var/lib/apt/lists/*
+	docker-compose-plugin \
+	&& \
+	usermod -aG docker "${DEFAULT_USERNAME}"
 
 RUN echo "**** Install asdf ****" && \
 	set -euxo pipefail && \
@@ -144,9 +143,11 @@ EOF
 
 USER root
 
-RUN echo "**** Install dprint ****" && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	\
+	echo "**** Install dprint ****" && \
 	set -euxo pipefail && \
-	apt-get update && \
 	_download_url="$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
 	https://api.github.com/repos/dprint/dprint/releases/tags/${DPRINT_VERSION} | \
 	jq -r '.assets[] | select(.name | endswith("x86_64-unknown-linux-gnu.zip")) | .browser_download_url')" && \
@@ -217,9 +218,11 @@ RUN echo "**** asdf install plugin terraform ****" && \
 	asdf plugin add terraform
 
 USER root
-RUN echo "**** Dependencies Python ****" && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	\
+	echo "**** Dependencies Python ****" && \
 	set -euxo pipefail && \
-	apt-get -y update && \
 	apt-get install -y --no-install-recommends \
 	build-essential \
 	libbz2-dev \
@@ -233,12 +236,7 @@ RUN echo "**** Dependencies Python ****" && \
 	libxmlsec1-dev \
 	tk-dev \
 	xz-utils \
-	zlib1g-dev && \
-	\
-	# Cleanup \
-	apt-get -y autoremove && \
-	apt-get -y clean && \
-	rm -rf /var/lib/apt/lists/*
+	zlib1g-dev
 
 USER ${DEFAULT_USERNAME}
 RUN echo "**** asdf install plugin python ****" && \
