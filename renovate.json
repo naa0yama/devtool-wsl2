@@ -18,8 +18,8 @@
 	"customManagers": [
 		{
 			"customType": "regex",
-			"fileMatch": [
-				"^Dockerfile(.*)$"
+			"managerFilePatterns": [
+				"/^Dockerfile(.*)$/"
 			],
 			"matchStrings": [
 				"## renovate: datasource=(?<datasource>(github-releases|github-tags|git-tags|npm))\\spackageName=(?<packageName>.+?)(versioning=(?<versioning>[a-z-]+?)|\\s?)+\\s(?:ENV|ARG) .+?_VERSION=(?<currentValue>.+?)\\s"
