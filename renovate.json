@@ -2,28 +2,5 @@
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": [
 		"local>naa0yama/renovate-config"
-	],
-	"packageRules": [
-		{
-			"matchUpdateTypes": [
-				"major",
-				"minor",
-				"patch"
-			],
-			"automerge": false,
-			"platformAutomerge": false,
-			"ignoreTests": false
-		}
-	],
-	"customManagers": [
-		{
-			"customType": "regex",
-			"managerFilePatterns": [
-				"/^Dockerfile(.*)$/"
-			],
-			"matchStrings": [
-				"## renovate: datasource=(?<datasource>(github-releases|github-tags|git-tags|npm))\\spackageName=(?<packageName>.+?)(versioning=(?<versioning>[a-z-]+?)|\\s?)+\\s(?:ENV|ARG) .+?_VERSION=(?<currentValue>.+?)\\s"
-			]
-		}
 	]
 }

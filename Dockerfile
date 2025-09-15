@@ -4,11 +4,11 @@
 ARG DEBIAN_FRONTEND=noninteractive \
 	DEFAULT_USERNAME=user
 
-## renovate: datasource=github-releases packageName=asdf-vm/asdf versioning=semver
+## renovate: datasource=github-releases packageName=asdf-vm/asdf versioning=semver automerge=true
 ARG ASDF_VERSION="v0.18.0"
-## renovate: datasource=github-releases packageName=edprint/dprint versioning=semver
+## renovate: datasource=github-releases packageName=edprint/dprint versioning=semver automerge=true
 ARG DPRINT_VERSION="0.50.0"
-## renovate: datasource=github-releases packageName=mame/wsl2-ssh-agent versioning=semver
+## renovate: datasource=github-releases packageName=mame/wsl2-ssh-agent versioning=semver automerge=true
 ARG WSL2SSHAGENT_VERSION="v0.9.6"
 
 # retry dns and some http codes that might be transient errors
