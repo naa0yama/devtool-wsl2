@@ -15,7 +15,13 @@ on:
       - auto_merge_enabled
   schedule:
     - cron: "00 02 1 * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      no_cache:
+        description: "Disable cache for container build"
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   builds:
@@ -26,7 +32,7 @@ jobs:
       contents: write
       packages: write
     env:
-      COMMIT_SHORT_SHA: null
+      COMMIT_SHORT_SHA: "null"
 
     steps:
       - name: Checkout from repository
@@ -69,6 +75,7 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache: ${{ github.event.inputs.no_cache == 'true' }}
           outputs: type=tar,dest=dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -135,7 +142,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "schedule" ]]; then
             echo "DRAFT=false" >> $GITHUB_ENV
             echo "MAKE_LATEST=true" >> $GITHUB_ENV
-          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" != "closed" && "${{ env.IS_BOT }}" == "false" ]]; then
+          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" != "closed" && "$IS_BOT" == "false" ]]; then
             echo "DRAFT=true" >> $GITHUB_ENV
             echo "MAKE_LATEST=false" >> $GITHUB_ENV
           elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
@@ -153,8 +160,8 @@ jobs:
           name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
           tag_name: ${{ env.COMMIT_SHORT_SHA }}
           generate_release_notes: true
-          draft: ${{ env.DRAFT }}
+          draft: $DRAFT
           prerelease: false
-          make_latest: ${{ env.MAKE_LATEST }}
+          make_latest: $MAKE_LATEST
           files: |
             ./dist/*
