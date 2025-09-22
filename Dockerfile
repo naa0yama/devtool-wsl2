@@ -36,6 +36,10 @@ RUN echo "**** set Timezone ****" && \
 	set -euxo pipefail && \
 	ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
+RUN echo "**** Remove container optimize ****" && \
+	set -euxo pipefail && \
+	rm /etc/apt/apt.conf.d/docker-*
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt,sharing=locked \
 	\
@@ -461,10 +465,6 @@ systemd=true
 
 _DOC_
 EOF
-
-RUN echo "**** Remove container optimize ****" && \
-	set -euxo pipefail && \
-	rm /etc/apt/apt.conf.d/docker-*
 
 USER ${DEFAULT_USERNAME}
 WORKDIR /home/${DEFAULT_USERNAME}/
