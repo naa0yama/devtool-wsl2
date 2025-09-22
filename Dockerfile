@@ -227,6 +227,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	\
 	echo "**** Dependencies Python ****" && \
 	set -euxo pipefail && \
+	apt-get update && \
 	apt-get install -y --no-install-recommends \
 	build-essential \
 	libbz2-dev \
