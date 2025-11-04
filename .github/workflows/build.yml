@@ -42,7 +42,7 @@ jobs:
           calculatedSha=$(git rev-parse --short ${{ github.sha }})
           echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
 
-      - uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
+      - uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
         id: meta
         with:
           images: ghcr.io/naa0yama/devtool-wsl2
