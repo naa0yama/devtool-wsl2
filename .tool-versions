@@ -4,7 +4,7 @@ awscli 2.31.39
 fzf 0.50.0
 ghq 1.6.1
 poetry 2.2.1
-python 3.10.12
+python 3.14.2
 rust stable
 starship 1.18.2
 terraform 1.13.5
