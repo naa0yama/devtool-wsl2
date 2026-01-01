@@ -90,6 +90,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 RUN echo "**** Create user ****" && \
 	set -euxo pipefail && \
+	userdel --remove ubuntu && \
+	\
 	groupadd --gid ${DEFAULT_GID} ${DEFAULT_USERNAME} && \
 	useradd -s /bin/bash --uid ${DEFAULT_UID} --gid ${DEFAULT_GID} -m ${DEFAULT_USERNAME} && \
 	echo ${DEFAULT_USERNAME}:password | chpasswd && \
