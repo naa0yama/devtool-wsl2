@@ -364,6 +364,12 @@ if [ ! -f "\${HOME}/.gitconfig" ]; then
 	echo "Copy .gitconfig from Windows"
 	cp -v "\${__USERPROFILE}/.gitconfig" ~/
 fi
+if [ ! -f "\${HOME}/.gitconfig.d" ]; then
+	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
+
+	echo "Copy .gitconfig.d from Windows"
+	cp -Rv "\${__USERPROFILE}/.gitconfig.d" ~/
+fi
 if [ ! -f "\${HOME}/.gitignore_global" ]; then
 	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
