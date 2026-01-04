@@ -330,31 +330,22 @@ RUN echo "**** rust tools path check ****" && \
 	type -p rg && \
 	type -p topgrade
 
-
-#
 RUN <<EOF
 echo "**** Add restore dump and '.gitconfig' to ~/.bashrc ****"
 set -euxo pipefail
 
+mkdir -p $HOME/.local/bin
 cat <<- _DOC_ >> ~/.bashrc
+
+# Add PATH .loca./bin
+case ":\$PATH:" in
+	*":\$HOME/.local/bin:"*) ;;
+	*) export PATH="\$HOME/.local/bin:\$PATH" ;;
+esac
 
 # Restore dump
 if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
-	__WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
-	__LAST_DUMP="\$(ls -t "\${__WSL2_DIR}/Backups/" | head -n1)"
-
-	if [ -n "\${__LAST_DUMP}" ]; then
-		echo "# =============================================================================="
-		echo "# devtool-wsl2 restore tools"
-		echo "#"
-		echo "# WSL2 Directory: \"\${__WSL2_DIR}\""
-		echo "# Last Dump     : \"\${__LAST_DUMP}\""
-		echo "# =============================================================================="
-
-		pv "\${__WSL2_DIR}/Backups/\${__LAST_DUMP}" | tar xf - -C "\${HOME}" --strip-components=2
-		date '+%Y-%m-%dT%H%M%S%z' > "\${HOME}/.devtool-wsl2.lock"
-		echo "Restore completed: \${__LAST_DUMP}"
-	fi
+	/usr/local/bin/restore.sh
 fi
 
 # Copy "~/.gitconfig" from Windows if it doesn't exist
@@ -377,83 +368,29 @@ if [ ! -f "\${HOME}/.gitignore_global" ]; then
 	cp -v "\${__USERPROFILE}/.gitignore_global" ~/
 fi
 
+# GPG and SSH agents
+export GPG_TTY=\$(tty)
+export SSH_AUTH_SOCK="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/ssh/agent.sock"
+
+if ! systemctl --user is-enabled --quiet agents-relay.service; then
+    systemctl --user enable --quiet agents-relay.service
+    systemctl --user start --quiet agents-relay.service
+fi
+if ! systemctl --user is-active  --quiet agents-relay.service; then
+    echo "⚠️  Warning: agents-relay.service is not running"
+    echo "     Start with: systemctl --user start agents-relay.service"
+fi
+
 _DOC_
 EOF
 
 USER root
-RUN <<EOF
-echo "**** Add 'backup.sh' to /usr/local/bin ****"
-set -euxo pipefail
-
-cat <<- _DOC_ >> /usr/local/bin/backup.sh
-#!/usr/bin/env bash
-set -eu
-
-WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
-FILENAME_DUMP="\$(date '+%Y-%m-%dT%H%M%S')_devtool-wsl2.tar"
-EXCLUDE_DIRS=(
-	".asdf"
-	".cache"
-	".docker"
-	".dotnet"
-	".local"
-	".vscode-remote-containers"
-	".vscode-server"
-)
-
-EXCLUDE_ARGS=()
-for dir in "\${EXCLUDE_DIRS[@]}"; do
-	EXCLUDE_ARGS+=("--exclude=\${dir}")
-done
-
-cat <<__EOF__> /dev/stdout
-# ==============================================================================
-# devtool-wsl2 backup tools
-#
-# WSL2 Directory: "\${WSL2_DIR}"
-# Filename      : "\${FILENAME_DUMP}"
-# Excludes      : "\${EXCLUDE_ARGS[@]}"
-# ==============================================================================
-
-__EOF__
-
-echo "Calculating directory size..."
-TOTAL_SIZE=\$(du -sb "\${HOME}" \
-	"\${EXCLUDE_ARGS[@]}" \
-	2>/dev/null | cut -f1)
-
-echo "Starting backup: \$(numfmt --to=iec \${TOTAL_SIZE}) to compress"
-tar -c \
-	"\${EXCLUDE_ARGS[@]}" \
-	"\${HOME}" | pv -p -t -e -r -a -s "\${TOTAL_SIZE}" > "/tmp/\${FILENAME_DUMP}"
-
-mkdir -p "\${WSL2_DIR}/Backups"
-rsync -avP "/tmp/\${FILENAME_DUMP}" "\${WSL2_DIR}/Backups"
-echo "Backup completed: \${WSL2_DIR}/Backups/\${FILENAME_DUMP}"
-
-_DOC_
-
-chmod +x /usr/local/bin/backup.sh
-
-EOF
-USER ${DEFAULT_USERNAME}
-
-# wsl2-ssh-agent Config
-RUN <<EOF
-echo "**** Add 'wsl2-ssh-agent config' to ~/.bashrc ****"
-set -euxo pipefail
-
-cat <<- _DOC_ >> ~/.bashrc
-
-# Bash configuration for wsl2-ssh-agent
-# eval \$(/usr/local/bin/wsl2-ssh-agent)
-
-_DOC_
-
-mkdir -p ~/.ssh
-chmod 0700 ~/.ssh
-
-EOF
+COPY --chown=root:root \
+	scripts/bin/systemd/user/agents-relay.service \
+	/home/${DEFAULT_USERNAME}/.config/systemd/user/agents-relay.service
+COPY --chown=root:root	scripts/bin/agents-relay.sh	/home/${DEFAULT_USERNAME}/.local/bin/agents-relay.sh
+COPY --chown=root:root	scripts/bin/restore.sh		/home/${DEFAULT_USERNAME}/.local/bin/restore.sh
+COPY --chown=root:root	scripts/bin/backup.sh		/home/${DEFAULT_USERNAME}/.local/bin/backup.sh
 
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root

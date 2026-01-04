@@ -1,0 +1,19 @@
+[Unit]
+Description=GPG and SSH Agent Relay for Windows
+Documentation=man:gpg-agent(1) man:ssh-agent(1)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/agents-relay.sh
+Restart=on-failure
+RestartSec=5s
+
+Nice=10
+CPUQuota=10%
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
