@@ -60,6 +60,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	command-not-found \
 	curl \
 	git \
+	gnupg \
 	gpg-agent \
 	htop \
 	iproute2 \
@@ -79,6 +80,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	pkg-config \
 	pv \
 	rsync \
+	socat \
 	software-properties-common \
 	sudo \
 	tcpdump \
@@ -163,23 +165,23 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	type -p dprint && \
 	rm -rf "./${_filename}"
 
-RUN echo "**** Install wsl2-ssh-agent ****" && \
-	set -euxo pipefail && \
-	__TEMPDIR=$(mktemp -d) && \
-	cd ${__TEMPDIR} && \
-	if [ -z "${WSL2SSHAGENT_VERSION}" ]; then echo "WSL2SSHAGENT_VERSION is blank"; else echo "WSL2SSHAGENT_VERSION is set to '$WSL2SSHAGENT_VERSION'"; fi && \
-	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
-	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
-	jq -r '.assets[] | select(.name | endswith("wsl2-ssh-agent")) | .browser_download_url')" && \
-	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
-	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
-	jq -r '.assets[] | select(.name | endswith("checksums.txt")) | .browser_download_url')" && \
-	grep -E '\swsl2-ssh-agent$' checksums.txt | sha256sum --status -c - && \
-	\
-	cp -av wsl2-ssh-agent /usr/local/bin/wsl2-ssh-agent && \
-	chmod +x /usr/local/bin/wsl2-ssh-agent && \
-	type -p wsl2-ssh-agent && \
-	rm -rf ${__TEMPDIR}
+# RUN echo "**** Install wsl2-ssh-agent ****" && \
+# 	set -euxo pipefail && \
+# 	__TEMPDIR=$(mktemp -d) && \
+# 	cd ${__TEMPDIR} && \
+# 	if [ -z "${WSL2SSHAGENT_VERSION}" ]; then echo "WSL2SSHAGENT_VERSION is blank"; else echo "WSL2SSHAGENT_VERSION is set to '$WSL2SSHAGENT_VERSION'"; fi && \
+# 	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
+# 	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
+# 	jq -r '.assets[] | select(.name | endswith("wsl2-ssh-agent")) | .browser_download_url')" && \
+# 	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
+# 	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
+# 	jq -r '.assets[] | select(.name | endswith("checksums.txt")) | .browser_download_url')" && \
+# 	grep -E '\swsl2-ssh-agent$' checksums.txt | sha256sum --status -c - && \
+# 	\
+# 	cp -av wsl2-ssh-agent /usr/local/bin/wsl2-ssh-agent && \
+# 	chmod +x /usr/local/bin/wsl2-ssh-agent && \
+# 	type -p wsl2-ssh-agent && \
+# 	rm -rf ${__TEMPDIR}
 
 RUN echo "**** Install git-secrets ****" && \
 	set -euxo pipefail && \
@@ -438,7 +440,7 @@ set -euxo pipefail
 cat <<- _DOC_ >> ~/.bashrc
 
 # Bash configuration for wsl2-ssh-agent
-eval \$(/usr/local/bin/wsl2-ssh-agent)
+# eval \$(/usr/local/bin/wsl2-ssh-agent)
 
 _DOC_
 
