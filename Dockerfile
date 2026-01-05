@@ -345,26 +345,31 @@ esac
 
 # Restore dump
 if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
-	/usr/local/bin/restore.sh
+	\$HOME/.local/bin/restore.sh
 fi
+
+# Colors
+__CLR_INFO='\033[0;36m'   # Cyan
+__CLR_WARN='\033[0;33m'   # Yellow
+__CLR_RESET='\033[0m'
 
 # Copy "~/.gitconfig" from Windows if it doesn't exist
 if [ ! -f "\${HOME}/.gitconfig" ]; then
 	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
-	echo "Copy .gitconfig from Windows"
+	echo -e "\${__CLR_INFO}[INFO]\${__CLR_RESET} Copy .gitconfig from Windows"
 	cp -v "\${__USERPROFILE}/.gitconfig" ~/
 fi
 if [ ! -f "\${HOME}/.gitconfig.d" ]; then
 	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
-	echo "Copy .gitconfig.d from Windows"
+	echo -e "\${__CLR_INFO}[INFO]\${__CLR_RESET} Copy .gitconfig.d from Windows"
 	cp -Rv "\${__USERPROFILE}/.gitconfig.d" ~/
 fi
 if [ ! -f "\${HOME}/.gitignore_global" ]; then
 	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
-	echo "Copy .gitignore_global from Windows"
+	echo -e "\${__CLR_INFO}[INFO]\${__CLR_RESET} Copy .gitignore_global from Windows"
 	cp -v "\${__USERPROFILE}/.gitignore_global" ~/
 fi
 
@@ -372,25 +377,26 @@ fi
 export GPG_TTY=\$(tty)
 export SSH_AUTH_SOCK="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/ssh/agent.sock"
 
-if ! systemctl --user is-enabled --quiet agents-relay.service; then
+if ! systemctl --user is-enabled --quiet agents-relay.service 2>/dev/null; then
+    systemctl --user daemon-reload
     systemctl --user enable --quiet agents-relay.service
     systemctl --user start --quiet agents-relay.service
 fi
 if ! systemctl --user is-active  --quiet agents-relay.service; then
-    echo "⚠️  Warning: agents-relay.service is not running"
-    echo "     Start with: systemctl --user start agents-relay.service"
+    echo -e "\${__CLR_WARN}[WARN]\${__CLR_RESET} agents-relay.service is not running"
+    echo "       Start with: systemctl --user start agents-relay.service"
 fi
 
 _DOC_
 EOF
 
 USER root
-COPY --chown=root:root \
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME} \
 	scripts/bin/systemd/user/agents-relay.service \
 	/home/${DEFAULT_USERNAME}/.config/systemd/user/agents-relay.service
-COPY --chown=root:root	scripts/bin/agents-relay.sh	/home/${DEFAULT_USERNAME}/.local/bin/agents-relay.sh
-COPY --chown=root:root	scripts/bin/restore.sh		/home/${DEFAULT_USERNAME}/.local/bin/restore.sh
-COPY --chown=root:root	scripts/bin/backup.sh		/home/${DEFAULT_USERNAME}/.local/bin/backup.sh
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/agents-relay.sh	/home/${DEFAULT_USERNAME}/.local/bin/agents-relay.sh
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/restore.sh		/home/${DEFAULT_USERNAME}/.local/bin/restore.sh
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/backup.sh		/home/${DEFAULT_USERNAME}/.local/bin/backup.sh
 
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root
