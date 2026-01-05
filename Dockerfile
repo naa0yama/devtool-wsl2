@@ -142,10 +142,10 @@ set -euxo pipefail
 
 cat <<- _DOC_ >> ~/.bashrc
 
-# Include ~/.bashrc.d
+# Include ~/.bashrc.d/
 if [ -d ~/.bashrc.d ]; then
 	for f in ~/.bashrc.d/*.sh; do
-		[ -r "$f" ] && source "$f"
+		[ -r "\$f" ] && source "\$f"
 	done
 fi
 
@@ -161,7 +161,7 @@ cat <<- _DOC_ > ~/.bashrc.d/10-asdf.sh
 #!/usr/bin/env bash
 
 # asdf command
-export PATH="\${ASDF_DATA_DIR:-$HOME/.asdf}/shims:\$PATH"
+export PATH="\${ASDF_DATA_DIR:-\$HOME/.asdf}/shims:\$PATH"
 . <(asdf completion bash)
 
 # asdf rust command
