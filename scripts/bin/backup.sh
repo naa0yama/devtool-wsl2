@@ -35,16 +35,16 @@ cat <<__EOF__> /dev/stdout
 
 __EOF__
 
-echo "${__CLR_INFO}[INFO]${__CLR_RESET}Calculating directory size..."
+echo -e "${__CLR_INFO}[INFO]${__CLR_RESET}Calculating directory size..."
 TOTAL_SIZE=$(du -sb "${HOME}" \
 	"${EXCLUDE_ARGS[@]}" \
 	2>/dev/null | cut -f1)
 
-echo "${__CLR_INFO}[INFO]${__CLR_RESET}Starting backup: $(numfmt --to=iec "${TOTAL_SIZE}") to compress"
+echo -e "${__CLR_INFO}[INFO]${__CLR_RESET}Starting backup: $(numfmt --to=iec "${TOTAL_SIZE}") to compress"
 tar -c \
 	"${EXCLUDE_ARGS[@]}" \
 	"${HOME}" | pv -p -t -e -r -a -s "${TOTAL_SIZE}" > "/tmp/${FILENAME_DUMP}"
 
 mkdir -p "${WSL2_DIR}/Backups"
 rsync -avP "/tmp/${FILENAME_DUMP}" "${WSL2_DIR}/Backups"
-echo "${__CLR_INFO}[INFO]${__CLR_RESET}Backup completed: ${WSL2_DIR}/Backups/${FILENAME_DUMP}"
+echo -e "${__CLR_INFO}[INFO]${__CLR_RESET}Backup completed: ${WSL2_DIR}/Backups/${FILENAME_DUMP}"
