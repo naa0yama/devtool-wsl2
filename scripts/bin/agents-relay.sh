@@ -61,17 +61,36 @@ fi
 install_npiperelay() {
 	if [ ! -f "${NPIPERELAY}" ]; then
 		echo "Downloading albertony/npiperelay ..."
-		local tempdir
+		local tempdir release_json exe_url checksum_url
+		local curl_user_agent='User-Agent: builder/1.0'
+
+		# Check GitHub API rate limit first
+		local rate_limit_json rate_limit rate_reset reset_time
+		rate_limit_json=$(curl "${CURL_OPTS[@]}" -H "${curl_user_agent}" \
+			https://api.github.com/rate_limit)
+		rate_limit=$(echo "${rate_limit_json}" | jq -r '.rate.remaining')
+		echo "GitHub API rate limit remaining: ${rate_limit}"
+		if [ "${rate_limit}" -lt 2 ]; then
+			rate_reset=$(echo "${rate_limit_json}" | jq -r '.rate.reset')
+			reset_time=$(date -d "@${rate_reset}" +"%Y-%m-%dT%H:%M:%S%z")
+			echo -e "\e[31mError: GitHub API rate limit exceeded. Reset at: ${reset_time}\e[0m" >&2
+			exit 1
+		fi
+
+		# Fetch release info once and store in variable
+		release_json=$(curl "${CURL_OPTS[@]}" -H "${curl_user_agent}" \
+			https://api.github.com/repos/albertony/npiperelay/releases/latest)
+
+		exe_url=$(echo "${release_json}" | \
+			jq -r '.assets[] | select(.name | endswith("npiperelay_windows_amd64.exe")) | .browser_download_url')
+		checksum_url=$(echo "${release_json}" | \
+			jq -r '.assets[] | select(.name | endswith("npiperelay_checksums.txt")) | .browser_download_url')
+
 		tempdir=$(mktemp -d)
 		cd "${tempdir}"
 
-		curl "${CURL_OPTS[@]}" -O "$(curl "${CURL_OPTS[@]}" -H 'User-Agent: builder/1.0' \
-			https://api.github.com/repos/albertony/npiperelay/releases/latest | \
-			jq -r '.assets[] | select(.name | endswith("npiperelay_windows_amd64.exe")) | .browser_download_url')"
-
-		curl "${CURL_OPTS[@]}" -O "$(curl "${CURL_OPTS[@]}" -H 'User-Agent: builder/1.0' \
-			https://api.github.com/repos/albertony/npiperelay/releases/latest | \
-			jq -r '.assets[] | select(.name | endswith("npiperelay_checksums.txt")) | .browser_download_url')"
+		curl "${CURL_OPTS[@]}" -O "${exe_url}"
+		curl "${CURL_OPTS[@]}" -O "${checksum_url}"
 
 		grep -E '\snpiperelay_windows_amd64.exe$' npiperelay_checksums.txt | sha256sum --status -c -
 
