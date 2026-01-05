@@ -42,9 +42,11 @@ is_ssh_pipe_available() {
 # -----------------------------------------------------------------------------
 # Settings
 # -----------------------------------------------------------------------------
-GPG_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnupg/S.gpg-agent"
+_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+_RUNTIME_DIR="${_RUNTIME_DIR%/}"
+GPG_SOCKET="${_RUNTIME_DIR}/gnupg/S.gpg-agent"
 GPG_BRIDGE_PORT=4321
-SSH_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ssh/agent.sock"
+SSH_SOCKET="${_RUNTIME_DIR}/ssh/agent.sock"
 SSH_NAMED_PIPE="//./pipe/openssh-ssh-agent"
 
 # WSL2 specific settings
