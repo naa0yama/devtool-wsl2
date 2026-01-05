@@ -333,7 +333,7 @@ function Import-WSL {
 		if ($defaultDistro) {
 			Write-Log "Current default WSL distribution: $defaultDistro"
 			Write-Log "Running backup script on $defaultDistro..."
-			wsl -d $defaultDistro bash /usr/local/bin/backup.sh
+			wsl -d $defaultDistro bash ~/.local/bin/backup.sh
 			Write-Log "Backup script executed successfully on $defaultDistro."
 		} else {
 			Write-Log "No default WSL distribution found." -ForegroundColor Yellow
