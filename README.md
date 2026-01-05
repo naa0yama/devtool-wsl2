@@ -29,7 +29,7 @@ WSL2 の開発環境を自動構築するセット\
 | [Docker Engine](https://gitub.com/moby/moby)                  | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)           |
 | [asdf](https://github.com/asdf-vm/asdf)                       | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)        |
 | [dprint](https://github.com/dprint/dprint)                    | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)       |
-| [mame/wsl2-ssh-agent](https://github.com/mame/wsl2-ssh-agent) | ![GitHub Tag](https://img.shields.io/github/v/tag/mame/wsl2-ssh-agent) |
+| [albertony/npiperelay](https://github.com/albertony/npiperelay) | ![GitHub Tag](https://img.shields.io/github/v/tag/albertony/npiperelay) |
 
 | asdf Plugins                                        | asdf Plugin URL                                                                   | Latest software version                                                 |
 | :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------- |
@@ -87,6 +87,11 @@ wsl -l -v
   dwsl2-8718ff1   Stopped         2
   Ubuntu          Stopped         2
 ```
+
+> [!TIP]
+> このスクリプトを使って展開された WSL2 は展開時に以前の defualt WSL2 環境でバックアップしたデータから自動で下記戻します。
+> この機能をオフにする場合 `%USERPROFILE%/Documents/WSL2` に `.restore-skip` というファイルを配置してください。
+> これでリストア処理をスキップします。
 
 実際に起動してみます。\
 このセクションではデフォルトに設定してないためディストリビューション指定で起動します。\

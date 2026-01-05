@@ -10,7 +10,8 @@ if [ -f "${__WSL2_DIR}/.restore-skip" ]; then
 	exit 0
 fi
 
-__LAST_DUMP="$(find "${__WSL2_DIR}/Backups/" -maxdepth 1 -type f -printf '%T@ %f\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
+__LAST_DUMP="$(find "${__WSL2_DIR}/Backups/" -name '*_devtool-wsl2.tar' -maxdepth 1 -type f \
+	-printf '%T@ %f\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
 
 if [ -n "${__LAST_DUMP}" ]; then
 	echo "# =============================================================================="
