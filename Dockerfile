@@ -137,14 +137,35 @@ RUN echo "**** Install asdf ****" && \
 
 USER ${DEFAULT_USERNAME}
 RUN <<EOF
-echo "**** add 'asdf' to ~/.bashrc ****"
+echo "**** add '~/.bashrc.d/*.sh' to ~/.bashrc ****"
 set -euxo pipefail
 
 cat <<- _DOC_ >> ~/.bashrc
 
-#asdf command
+# Include ~/.bashrc.d
+if [ -d ~/.bashrc.d ]; then
+	for f in ~/.bashrc.d/*.sh; do
+		[ -r "$f" ] && source "$f"
+	done
+fi
+
+_DOC_
+EOF
+
+RUN <<EOF
+echo "**** add 'asdf' to ~/.bashrc.d/10-asdf.sh ****"
+set -euxo pipefail
+
+mkdir -p ~/.bashrc.d/
+cat <<- _DOC_ > ~/.bashrc.d/10-asdf.sh
+#!/usr/bin/env bash
+
+# asdf command
 export PATH="\${ASDF_DATA_DIR:-$HOME/.asdf}/shims:\$PATH"
 . <(asdf completion bash)
+
+# asdf rust command
+export PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin
 
 _DOC_
 EOF
@@ -164,24 +185,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	unzip "${_filename}" -d /usr/local/bin/ && \
 	type -p dprint && \
 	rm -rf "./${_filename}"
-
-# RUN echo "**** Install wsl2-ssh-agent ****" && \
-# 	set -euxo pipefail && \
-# 	__TEMPDIR=$(mktemp -d) && \
-# 	cd ${__TEMPDIR} && \
-# 	if [ -z "${WSL2SSHAGENT_VERSION}" ]; then echo "WSL2SSHAGENT_VERSION is blank"; else echo "WSL2SSHAGENT_VERSION is set to '$WSL2SSHAGENT_VERSION'"; fi && \
-# 	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
-# 	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
-# 	jq -r '.assets[] | select(.name | endswith("wsl2-ssh-agent")) | .browser_download_url')" && \
-# 	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
-# 	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
-# 	jq -r '.assets[] | select(.name | endswith("checksums.txt")) | .browser_download_url')" && \
-# 	grep -E '\swsl2-ssh-agent$' checksums.txt | sha256sum --status -c - && \
-# 	\
-# 	cp -av wsl2-ssh-agent /usr/local/bin/wsl2-ssh-agent && \
-# 	chmod +x /usr/local/bin/wsl2-ssh-agent && \
-# 	type -p wsl2-ssh-agent && \
-# 	rm -rf ${__TEMPDIR}
 
 RUN echo "**** Install git-secrets ****" && \
 	set -euxo pipefail && \
@@ -312,17 +315,6 @@ done
 
 EOF
 
-RUN <<EOF
-echo "**** rust tools path append ****"
-set -euxo pipefail && \
-
-cat <<- _DOC_ >> ~/.bashrc
-#asdf rust command
-export PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin
-
-_DOC_
-EOF
-
 RUN echo "**** rust tools path check ****" && \
 	set -euxo pipefail && \
 	source ~/.bashrc && \
@@ -331,11 +323,12 @@ RUN echo "**** rust tools path check ****" && \
 	type -p topgrade
 
 RUN <<EOF
-echo "**** Add restore dump and '.gitconfig' to ~/.bashrc ****"
+echo "**** Add ~/.bashrc.d/05-path.sh ****"
 set -euxo pipefail
 
 mkdir -p $HOME/.local/bin
-cat <<- _DOC_ >> ~/.bashrc
+cat <<- _DOC_ > ~/.bashrc.d/05-path.sh
+#!/usr/bin/env bash
 
 # Add PATH .loca./bin
 case ":\$PATH:" in
@@ -343,10 +336,59 @@ case ":\$PATH:" in
 	*) export PATH="\$HOME/.local/bin:\$PATH" ;;
 esac
 
+_DOC_
+EOF
+
+RUN <<EOF
+echo "**** Add ~/.bashrc.d/21-devtool-wsl2.sh ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > ~/.bashrc.d/21-devtool-wsl2.sh
+#!/usr/bin/env bash
+
 # Restore dump
 if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
 	\$HOME/.local/bin/restore.sh
 fi
+
+_DOC_
+EOF
+
+RUN <<EOF
+echo "**** Add ~/.bashrc.d/22-agents-relay.sh ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > ~/.bashrc.d/22-agents-relay.sh
+#!/usr/bin/env bash
+
+# Colors
+__CLR_INFO='\033[0;36m'   # Cyan
+__CLR_WARN='\033[0;33m'   # Yellow
+__CLR_RESET='\033[0m'
+
+# GPG and SSH agents
+export GPG_TTY=\$(tty)
+export SSH_AUTH_SOCK="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/ssh/agent.sock"
+
+if ! systemctl --user is-enabled --quiet agents-relay.service 2>/dev/null; then
+    systemctl --user daemon-reload
+    systemctl --user enable --quiet agents-relay.service
+    systemctl --user start --quiet agents-relay.service
+fi
+if ! systemctl --user is-active  --quiet agents-relay.service; then
+    echo -e "\${__CLR_WARN}[WARN]\${__CLR_RESET} agents-relay.service is not running"
+    echo "       Start with: journalctl --user -u gents-relay.service -f"
+    echo "       Start with: systemctl --user start agents-relay.service"
+fi
+_DOC_
+EOF
+
+RUN <<EOF
+echo "**** Add ~/.bashrc.d/23-gitconfig-copy.sh ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > ~/.bashrc.d/23-gitconfig-copy.sh
+#!/usr/bin/env bash
 
 # Colors
 __CLR_INFO='\033[0;36m'   # Cyan
@@ -371,20 +413,6 @@ if [ ! -f "\${HOME}/.gitignore_global" ]; then
 
 	echo -e "\${__CLR_INFO}[INFO]\${__CLR_RESET} Copy .gitignore_global from Windows"
 	cp -v "\${__USERPROFILE}/.gitignore_global" ~/
-fi
-
-# GPG and SSH agents
-export GPG_TTY=\$(tty)
-export SSH_AUTH_SOCK="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/ssh/agent.sock"
-
-if ! systemctl --user is-enabled --quiet agents-relay.service 2>/dev/null; then
-    systemctl --user daemon-reload
-    systemctl --user enable --quiet agents-relay.service
-    systemctl --user start --quiet agents-relay.service
-fi
-if ! systemctl --user is-active  --quiet agents-relay.service; then
-    echo -e "\${__CLR_WARN}[WARN]\${__CLR_RESET} agents-relay.service is not running"
-    echo "       Start with: systemctl --user start agents-relay.service"
 fi
 
 _DOC_
