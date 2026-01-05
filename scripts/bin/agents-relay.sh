@@ -35,8 +35,8 @@ is_gpg_forward_available() {
 is_ssh_pipe_available() {
 	local pipe="$1"
 	local npiperelay="$2"
-	# Test if npiperelay can access the pipe
-	[ -x "$npiperelay" ] && timeout 1 "$npiperelay" -q "$pipe" 2>/dev/null
+	# Check npiperelay is executable and pipe exists via PowerShell
+	[ -x "$npiperelay" ] && "${POWERSHELL}" -NoProfile -Command "Test-Path '${pipe}'" 2>/dev/null | grep -qi 'true'
 }
 
 # -----------------------------------------------------------------------------
@@ -49,8 +49,9 @@ SSH_NAMED_PIPE="//./pipe/openssh-ssh-agent"
 
 # WSL2 specific settings
 if is_wsl2; then
+	POWERSHELL="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 	# shellcheck disable=SC2016 # $env:USERPROFILE is intentionally passed to PowerShell
-	__USERPROFILE="$(wslpath -u "$(powershell.exe -c '$env:USERPROFILE' | tr -d '\r')")"
+	__USERPROFILE="$(wslpath -u "$("${POWERSHELL}" -NoProfile -c '$env:USERPROFILE' | tr -d '\r')")"
 	NPIPERELAY="${__USERPROFILE}/.local/bin/npiperelay.exe"
 	CURL_OPTS=(-sfSL --retry 3 --retry-delay 2 --retry-connrefused)
 fi
