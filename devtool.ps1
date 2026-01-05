@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/env powershell
 
 param (
+	[string]$Tag,
 	[switch]$skipWSLImport,
 	[switch]$skipWSLDefault,
 	[switch]$ImportForce,
@@ -403,20 +404,27 @@ function Cleanup-DownloadPath {
 
 function Main {
 	param (
+		[string]$Tag,
 		[switch]$skipWSLImport,
 		[switch]$skipWSLDefault,
 		[switch]$ImportForce,
 		[switch]$Debug
 	)
 	$ownerRepo = "naa0yama/devtool-wsl2"
-	Write-Log "[DEBUG] Starting Main function with parameters: skipWSLImport=$skipWSLImport, skipWSLDefault=$skipWSLDefault, ImportForce=$ImportForce, Debug=$Debug"
+	Write-Log "[DEBUG] Starting Main function with parameters: Tag=$Tag, skipWSLImport=$skipWSLImport, skipWSLDefault=$skipWSLDefault, ImportForce=$ImportForce, Debug=$Debug"
 
 	$owner = "naa0yama"
 	$repo = "devtool-wsl2"
 
 	try {
-		Write-Log "[DEBUG] Attempting to get latest release info"
-		$apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+		# Tag が指定されている場合は特定のリリースを取得、なければ latest
+		if ($Tag) {
+			Write-Log "[DEBUG] Attempting to get release info for tag: $Tag"
+			$apiUrl = "https://api.github.com/repos/$owner/$repo/releases/tags/$Tag"
+		} else {
+			Write-Log "[DEBUG] Attempting to get latest release info"
+			$apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+		}
 		$headers = @{
 			"User-Agent" = "PowerShell"
 		}
@@ -442,12 +450,17 @@ function Main {
 		Write-Log "//  \__,_|\___| \_/  \__\___/ \___/|_|        \_/\_/ |___/_|\_____/"
 		Write-Log "//"
 		Write-Log "//"
-		Write-Log "// The latest tag is`t`t$tag_name"
-		Write-Log "// The latest Release Pages is`t$html_url"
+		if ($Tag) {
+			Write-Log "// Specified tag is`t`t$tag_name"
+		} else {
+			Write-Log "// The latest tag is`t`t$tag_name"
+		}
+		Write-Log "// Release Pages is`t`t$html_url"
 		Write-Log "// WSL2 Path`t`t`t$wslPath"
 		Write-Log "// Downloaded Path`t`t$downloadPath"
 		Write-Log "//"
 		Write-Log "// Options:"
+		Write-Log "//`tTag`t`t`t$Tag"
 		Write-Log "//`tskipWSLImport`t`t$skipWSLImport"
 		Write-Log "//`tskipWSLDefault`t`t$skipWSLDefault"
 		Write-Log "//`tImportForce`t`t$ImportForce"
@@ -487,7 +500,11 @@ if ($Debug) {
         Write-Log "Debug mode: Runs tests against the GitHub API" -Level "INFO"
         $owner = "naa0yama"
         $repo = "devtool-wsl2"
-        $apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+        if ($Tag) {
+            $apiUrl = "https://api.github.com/repos/$owner/$repo/releases/tags/$Tag"
+        } else {
+            $apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+        }
         $headers = @{
             "User-Agent" = "PowerShell"
         }
@@ -504,4 +521,4 @@ if ($Debug) {
 }
 
 # 通常モードの場合は、通常の処理を実行
-Main -skipWSLImport:$skipWSLImport -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce -Debug:$Debug
+Main -Tag $Tag -skipWSLImport:$skipWSLImport -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce -Debug:$Debug
