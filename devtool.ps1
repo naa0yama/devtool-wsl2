@@ -451,12 +451,12 @@ function Main {
 		Write-Log "//"
 		Write-Log "//"
 		if ($Tag) {
-			Write-Log "// Specified tag is`t`t$tag_name"
+			Write-Log "// Specified tag is`t$tag_name"
 		} else {
-			Write-Log "// The latest tag is`t`t$tag_name"
+			Write-Log "// The latest tag is`t$tag_name"
 		}
-		Write-Log "// Release Pages is`t`t$html_url"
-		Write-Log "// WSL2 Path`t`t`t$wslPath"
+		Write-Log "// Release Pages is`t$html_url"
+		Write-Log "// WSL2 Path`t`t$wslPath"
 		Write-Log "// Downloaded Path`t`t$downloadPath"
 		Write-Log "//"
 		Write-Log "// Options:"
