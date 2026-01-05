@@ -52,7 +52,7 @@ if is_wsl2; then
 	# shellcheck disable=SC2016 # $env:USERPROFILE is intentionally passed to PowerShell
 	__USERPROFILE="$(wslpath -u "$(powershell.exe -c '$env:USERPROFILE' | tr -d '\r')")"
 	NPIPERELAY="${__USERPROFILE}/.local/bin/npiperelay.exe"
-	CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
+	CURL_OPTS=(-sfSL --retry 3 --retry-delay 2 --retry-connrefused)
 fi
 
 # -----------------------------------------------------------------------------
@@ -65,11 +65,11 @@ install_npiperelay() {
 		tempdir=$(mktemp -d)
 		cd "${tempdir}"
 
-		curl "${CURL_OPTS}" -O "$(curl "${CURL_OPTS}" -H 'User-Agent: builder/1.0' \
+		curl "${CURL_OPTS[@]}" -O "$(curl "${CURL_OPTS[@]}" -H 'User-Agent: builder/1.0' \
 			https://api.github.com/repos/albertony/npiperelay/releases/latest | \
 			jq -r '.assets[] | select(.name | endswith("npiperelay_windows_amd64.exe")) | .browser_download_url')"
 
-		curl "${CURL_OPTS}" -O "$(curl "${CURL_OPTS}" -H 'User-Agent: builder/1.0' \
+		curl "${CURL_OPTS[@]}" -O "$(curl "${CURL_OPTS[@]}" -H 'User-Agent: builder/1.0' \
 			https://api.github.com/repos/albertony/npiperelay/releases/latest | \
 			jq -r '.assets[] | select(.name | endswith("npiperelay_checksums.txt")) | .browser_download_url')"
 
