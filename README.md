@@ -13,7 +13,6 @@ WSL2 の開発環境を自動構築するセット\
   - ca-certificates
   - curl
   - git
-  - gpg-agent
   - man
   - mtr
   - nano

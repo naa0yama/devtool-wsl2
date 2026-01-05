@@ -1,11 +1,11 @@
 [Unit]
-Description=GPG and SSH Agent Relay for Windows
-Documentation=man:gpg-agent(1) man:ssh-agent(1)
+Description=SSH Agent Relay for Windows
+Documentation=man:ssh-agent(1)
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/agents-relay.sh
+ExecStart=%h/.local/bin/ssh-relay.sh
 Restart=on-failure
 RestartSec=5s
 

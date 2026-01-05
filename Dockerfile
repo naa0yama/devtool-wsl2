@@ -61,7 +61,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	curl \
 	git \
 	gnupg \
-	gpg-agent \
 	htop \
 	iproute2 \
 	iputils-arping \
@@ -355,10 +354,10 @@ _DOC_
 EOF
 
 RUN <<EOF
-echo "**** Add ~/.bashrc.d/22-agents-relay.sh ****"
+echo "**** Add ~/.bashrc.d/22-ssh-relay.sh ****"
 set -euxo pipefail
 
-cat <<- _DOC_ > ~/.bashrc.d/22-agents-relay.sh
+cat <<- _DOC_ > ~/.bashrc.d/22-ssh-relay.sh
 #!/usr/bin/env bash
 
 # Colors
@@ -366,19 +365,17 @@ __CLR_INFO='\033[0;36m'   # Cyan
 __CLR_WARN='\033[0;33m'   # Yellow
 __CLR_RESET='\033[0m'
 
-# GPG and SSH agents
-export GPG_TTY=\$(tty)
+# SSH agents
 export SSH_AUTH_SOCK="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/ssh/agent.sock"
-
-if ! systemctl --user is-enabled --quiet agents-relay.service 2>/dev/null; then
+if ! systemctl --user is-enabled --quiet ssh-relay.service 2>/dev/null; then
     systemctl --user daemon-reload
-    systemctl --user enable --quiet agents-relay.service
-    systemctl --user start --quiet agents-relay.service
+    systemctl --user enable --quiet ssh-relay.service
+    systemctl --user start --quiet ssh-relay.service
 fi
-if ! systemctl --user is-active  --quiet agents-relay.service; then
-    echo -e "\${__CLR_WARN}[WARN]\${__CLR_RESET} agents-relay.service is not running"
-    echo "       Start with: journalctl --user -u gents-relay.service -f"
-    echo "       Start with: systemctl --user start agents-relay.service"
+if ! systemctl --user is-active  --quiet ssh-relay.service; then
+    echo -e "\${__CLR_WARN}[WARN]\${__CLR_RESET} ssh-relay.service is not running"
+    echo "       Start with: journalctl --user -u ssh-relay.service -f"
+    echo "       Start with: systemctl --user start ssh-relay.service"
 fi
 _DOC_
 EOF
@@ -420,9 +417,9 @@ EOF
 
 USER root
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME} \
-	scripts/bin/systemd/user/agents-relay.service \
-	/home/${DEFAULT_USERNAME}/.config/systemd/user/agents-relay.service
-COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/agents-relay.sh	/home/${DEFAULT_USERNAME}/.local/bin/agents-relay.sh
+	scripts/bin/systemd/user/ssh-relay.service \
+	/home/${DEFAULT_USERNAME}/.config/systemd/user/ssh-relay.service
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/ssh-relay.sh	/home/${DEFAULT_USERNAME}/.local/bin/ssh-relay.sh
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/restore.sh		/home/${DEFAULT_USERNAME}/.local/bin/restore.sh
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/backup.sh		/home/${DEFAULT_USERNAME}/.local/bin/backup.sh
 
