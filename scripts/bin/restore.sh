@@ -3,6 +3,13 @@ set -euo pipefail
 
 # shellcheck disable=SC2016 # $env:USERPROFILE is intentionally passed to PowerShell
 __WSL2_DIR="$(wslpath -u "$(powershell.exe -c '$env:USERPROFILE' | tr -d '\r')")/Documents/WSL2"
+
+# Skip restore if .restore-skip file exists
+if [ -f "${__WSL2_DIR}/.restore-skip" ]; then
+	echo "Restore skipped: ${__WSL2_DIR}/.restore-skip exists"
+	exit 0
+fi
+
 __LAST_DUMP="$(find "${__WSL2_DIR}/Backups/" -maxdepth 1 -type f -printf '%T@ %f\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
 
 if [ -n "${__LAST_DUMP}" ]; then
