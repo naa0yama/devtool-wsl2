@@ -207,10 +207,6 @@ ARG DEBIAN_FRONTEND \
 
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 .tool-versions /home/${DEFAULT_USERNAME}/.tool-versions
 
-RUN echo "**** asdf install plugin asdf-assh ****" && \
-	set -euxo pipefail && \
-	asdf plugin add assh
-
 RUN echo "**** asdf install plugin awscli ****" && \
 	set -euxo pipefail && \
 	asdf plugin add awscli
@@ -281,7 +277,10 @@ RUN echo "**** asdf install plugin aws-sam-cli ****" && \
 
 RUN echo "**** asdf install python ****" && \
 	set -euxo pipefail && \
-	asdf install python && \
+	asdf install python
+
+RUN echo "**** asdf install other deps ****" && \
+	set -euxo pipefail && \
 	asdf install
 
 RUN echo "**** asdf check ****" && \
@@ -416,6 +415,19 @@ _DOC_
 EOF
 
 USER root
+RUN <<EOF
+echo "**** systemctl mask gpg-agent* ****"
+set -euxo pipefail
+
+mkdir -p /etc/systemd/user
+ln -sf /dev/null /etc/systemd/user/gpg-agent.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent-browser.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent-extra.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent-ssh.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent.service
+
+EOF
+
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME} \
 	scripts/bin/systemd/user/ssh-relay.service \
 	/home/${DEFAULT_USERNAME}/.config/systemd/user/ssh-relay.service
