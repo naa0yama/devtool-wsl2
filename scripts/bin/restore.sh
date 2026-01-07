@@ -27,6 +27,6 @@ if [ -n "${__LAST_DUMP}" ]; then
 	echo "# =============================================================================="
 
 	pv "${__WSL2_DIR}/Backups/${__LAST_DUMP}" | tar xf - -C "${HOME}" --strip-components=2
-	date '+%Y-%m-%dT%H%M%S%z' > "${HOME}/.devtool-wsl2.lock"
+	date '+%Y-%m-%dT%H%M%S%z' > "${HOME}/.dwsl2-restore.lock"
 	echo -e "${__CLR_INFO}[INFO]${__CLR_RESET}Restore completed: ${__LAST_DUMP}"
 fi

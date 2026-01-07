@@ -8,8 +8,6 @@ ARG DEBIAN_FRONTEND=noninteractive \
 ARG ASDF_VERSION="v0.18.0"
 ## renovate: datasource=github-releases packageName=edprint/dprint versioning=semver automerge=true
 ARG DPRINT_VERSION="0.50.0"
-## renovate: datasource=github-releases packageName=mame/wsl2-ssh-agent versioning=semver automerge=true
-ARG WSL2SSHAGENT_VERSION="v0.9.6"
 
 # retry dns and some http codes that might be transient errors
 ARG CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
@@ -25,8 +23,7 @@ ARG CURL_OPTS \
 	DEFAULT_GID=1100 \
 	DEFAULT_USERNAME \
 	ASDF_VERSION \
-	DPRINT_VERSION \
-	WSL2SSHAGENT_VERSION
+	DPRINT_VERSION
 
 ENV TZ=Asia/Tokyo
 
@@ -338,14 +335,19 @@ _DOC_
 EOF
 
 RUN <<EOF
-echo "**** Add ~/.bashrc.d/21-devtool-wsl2.sh ****"
+echo "**** Add ~/.bashrc.d/11-devtool-wsl2.sh ****"
 set -euxo pipefail
 
-cat <<- _DOC_ > ~/.bashrc.d/21-devtool-wsl2.sh
+cat <<- _DOC_ > ~/.bashrc.d/11-devtool-wsl2.sh
 #!/usr/bin/env bash
 
+# Setup
+if [ ! -f "\${HOME}/.cache/dwsl2-setup.lock" ]; then
+	\$HOME/.local/bin/setup.sh
+fi
+
 # Restore dump
-if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
+if [ ! -f "\${HOME}/.dwsl2-restore.lock" ]; then
 	\$HOME/.local/bin/restore.sh
 fi
 
@@ -353,37 +355,10 @@ _DOC_
 EOF
 
 RUN <<EOF
-echo "**** Add ~/.bashrc.d/22-ssh-relay.sh ****"
+echo "**** Add ~/.bashrc.d/31-gitconfig-copy.sh ****"
 set -euxo pipefail
 
-cat <<- _DOC_ > ~/.bashrc.d/22-ssh-relay.sh
-#!/usr/bin/env bash
-
-# Colors
-__CLR_INFO='\033[0;36m'   # Cyan
-__CLR_WARN='\033[0;33m'   # Yellow
-__CLR_RESET='\033[0m'
-
-# SSH agents
-export SSH_AUTH_SOCK="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/ssh/agent.sock"
-if ! systemctl --user is-enabled --quiet ssh-relay.service 2>/dev/null; then
-    systemctl --user daemon-reload
-    systemctl --user enable --quiet ssh-relay.service
-    systemctl --user start --quiet ssh-relay.service
-fi
-if ! systemctl --user is-active  --quiet ssh-relay.service; then
-    echo -e "\${__CLR_WARN}[WARN]\${__CLR_RESET} ssh-relay.service is not running"
-    echo "       Start with: journalctl --user -u ssh-relay.service -f"
-    echo "       Start with: systemctl --user start ssh-relay.service"
-fi
-_DOC_
-EOF
-
-RUN <<EOF
-echo "**** Add ~/.bashrc.d/23-gitconfig-copy.sh ****"
-set -euxo pipefail
-
-cat <<- _DOC_ > ~/.bashrc.d/23-gitconfig-copy.sh
+cat <<- _DOC_ > ~/.bashrc.d/31-gitconfig-copy.sh
 #!/usr/bin/env bash
 
 # Colors
@@ -428,10 +403,8 @@ ln -sf /dev/null /etc/systemd/user/gpg-agent.service
 
 EOF
 
-COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME} \
-	scripts/bin/systemd/user/ssh-relay.service \
-	/home/${DEFAULT_USERNAME}/.config/systemd/user/ssh-relay.service
-COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/ssh-relay.sh	/home/${DEFAULT_USERNAME}/.local/bin/ssh-relay.sh
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/setup.sh		/home/${DEFAULT_USERNAME}/.local/bin/setup.sh
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/yubikey-tool.ps1	/home/${DEFAULT_USERNAME}/.local/bin/yubikey-tool.ps1
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/restore.sh		/home/${DEFAULT_USERNAME}/.local/bin/restore.sh
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/backup.sh		/home/${DEFAULT_USERNAME}/.local/bin/backup.sh
 
