@@ -241,7 +241,6 @@ install_systemd_units_wsl2() {
 	mkdir -p "${systemd_dst}"
 
 	# ssh-agent.socket
-	rm -f "${systemd_dst}/ssh-agent.socket"
 	cat > "${systemd_dst}/ssh-agent.socket" << 'EOF'
 [Unit]
 Description=SSH Agent Socket (relay to Windows OpenSSH Agent)
@@ -273,6 +272,7 @@ StandardError=journal
 EOF
 
 	# gpg-agent.socket
+	rm -f "${systemd_dst}/gpg-agent.socket"
 	cat > "${systemd_dst}/gpg-agent.socket" << 'EOF'
 [Unit]
 Description=GPG Agent Socket (relay to Windows gpg-agent)
