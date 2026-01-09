@@ -89,8 +89,7 @@ setup_wsl2_vars() {
 	YUBIKEY_TOOL_SRC="${SCRIPT_DIR}/yubikey-tool.ps1"
 
 	# GPG paths from gpgconf.exe (Windows paths for npiperelay -a flag)
-	GPG_HOMEDIR="$(gpgconf.exe --list-dirs homedir | fixpath)"
-	GPG_AGENT_EXTRA_SOCK="${GPG_HOMEDIR}/S.gpg-agent.extra"
+	GPG_AGENT_EXTRA_SOCK="$(gpgconf.exe --list-dirs agent-extra-socket | fixpath)"
 }
 
 install_npiperelay() {
