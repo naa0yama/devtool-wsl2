@@ -13,8 +13,10 @@
 	- Displays a Toast notification to prompt the user to touch
 
 	Tray icon states:
-	- Padlock: Normal monitoring state
-	- Key: Touch required (YubiKey waiting for touch)
+	- Normal: Monitoring state (imageres.dll index 321)
+	- Touch: Touch required (imageres.dll index 300)
+	- NoCard: YubiKey not detected (imageres.dll index 54)
+	- Error: Connection error, auto-restart (imageres.dll index 270)
 
 	System tray menu:
 	- Restart Agents: Restart gpg-agent and gpg-bridge
@@ -104,14 +106,14 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Import ExtractIcon from shell32.dll
+# Import ExtractIconEx from shell32.dll
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 
 public class IconExtractor {
     [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-    public static extern IntPtr ExtractIcon(IntPtr hInst, string lpszExeFileName, int nIconIndex);
+    public static extern int ExtractIconEx(string lpszFile, int nIconIndex, IntPtr[] phiconLarge, IntPtr[] phiconSmall, int nIcons);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool DestroyIcon(IntPtr hIcon);
@@ -122,6 +124,8 @@ public class IconExtractor {
 $script:TrayIcon = $null
 $script:IconNormal = $null    # Padlock (normal state)
 $script:IconTouch = $null     # Key (touch required)
+$script:IconNoCard = $null    # Warning (no card)
+$script:IconError = $null     # Error (connection error)
 
 #region Configuration
 
@@ -253,6 +257,42 @@ function Show-ToastNotification {
 	Write-Log "All notification methods failed: $Title - $Message" -Level WARN
 }
 
+function Get-IconFromDll {
+	<#
+	.SYNOPSIS
+		Extract icon from DLL file
+	.PARAMETER DllPath
+		Path to DLL file
+	.PARAMETER Index
+		Icon index in DLL
+	.PARAMETER Name
+		Icon name for logging
+	#>
+	param(
+		[string]$DllPath,
+		[int]$Index,
+		[string]$Name
+	)
+
+	$largeIcons = New-Object IntPtr[] 1
+	$smallIcons = New-Object IntPtr[] 1
+
+	try {
+		$count = [IconExtractor]::ExtractIconEx($DllPath, $Index, $largeIcons, $smallIcons, 1)
+		if ($count -gt 0 -and $largeIcons[0] -ne [IntPtr]::Zero) {
+			$icon = [System.Drawing.Icon]::FromHandle($largeIcons[0]).Clone()
+			[IconExtractor]::DestroyIcon($largeIcons[0]) | Out-Null
+			Write-Log "$Name icon loaded (index $Index)" -Level DEBUG
+			return $icon
+		}
+		Write-Log "$Name icon extraction returned null (index $Index)" -Level WARN
+	}
+	catch {
+		Write-Log "Failed to load $Name icon: $($_.Exception.Message)" -Level WARN
+	}
+	return $null
+}
+
 function Initialize-TrayIcon {
 	<#
 	.SYNOPSIS
@@ -264,33 +304,13 @@ function Initialize-TrayIcon {
 	# Create tray icon
 	$script:TrayIcon = New-Object System.Windows.Forms.NotifyIcon
 
-	# Load icons for different states
-	$shell32Path = Join-Path $env:SystemRoot "System32\shell32.dll"
+	# Load icons for different states (all from imageres.dll)
 	$imageresPath = Join-Path $env:SystemRoot "System32\imageres.dll"
 
-	# Normal state icon (padlock from imageres.dll)
-	try {
-		$hIcon = [IconExtractor]::ExtractIcon([IntPtr]::Zero, $imageresPath, 54)
-		if ($hIcon -ne [IntPtr]::Zero) {
-			$script:IconNormal = [System.Drawing.Icon]::FromHandle($hIcon)
-			Write-Log "Normal icon loaded (imageres.dll index 54)" -Level DEBUG
-		}
-	}
-	catch {
-		Write-Log "Failed to load normal icon: $($_.Exception.Message)" -Level DEBUG
-	}
-
-	# Touch required icon (key from shell32.dll)
-	try {
-		$hIcon = [IconExtractor]::ExtractIcon([IntPtr]::Zero, $shell32Path, -194)
-		if ($hIcon -ne [IntPtr]::Zero) {
-			$script:IconTouch = [System.Drawing.Icon]::FromHandle($hIcon)
-			Write-Log "Touch icon loaded (shell32.dll resource ID 194)" -Level DEBUG
-		}
-	}
-	catch {
-		Write-Log "Failed to load touch icon: $($_.Exception.Message)" -Level DEBUG
-	}
+	$script:IconNormal = Get-IconFromDll -DllPath $imageresPath -Index 321 -Name "Normal"
+	$script:IconTouch = Get-IconFromDll -DllPath $imageresPath -Index 300 -Name "Touch"
+	$script:IconNoCard = Get-IconFromDll -DllPath $imageresPath -Index 54 -Name "NoCard"
+	$script:IconError = Get-IconFromDll -DllPath $imageresPath -Index 270 -Name "Error"
 
 	# Set initial icon (normal state)
 	if ($script:IconNormal) {
@@ -367,14 +387,17 @@ function Remove-TrayIcon {
 		$script:TrayIcon = $null
 	}
 
-	if ($script:IconNormal) {
-		$script:IconNormal.Dispose()
-		$script:IconNormal = $null
-	}
-
-	if ($script:IconTouch) {
-		$script:IconTouch.Dispose()
-		$script:IconTouch = $null
+	# Dispose all icons
+	foreach ($iconRef in @(
+		[ref]$script:IconNormal,
+		[ref]$script:IconTouch,
+		[ref]$script:IconNoCard,
+		[ref]$script:IconError
+	)) {
+		if ($iconRef.Value) {
+			$iconRef.Value.Dispose()
+			$iconRef.Value = $null
+		}
 	}
 
 	Write-Log "System tray icon removed"
@@ -384,20 +407,42 @@ function Set-TrayIconState {
 	<#
 	.SYNOPSIS
 		Change tray icon based on state
-	.PARAMETER TouchRequired
-		If true, show key icon (touch required). If false, show padlock (normal).
+	.PARAMETER State
+		Icon state: "Normal", "Touch", "NoCard", "Error"
 	#>
-	param([bool]$TouchRequired)
+	param(
+		[Parameter(Mandatory)]
+		[ValidateSet("Normal", "Touch", "NoCard", "Error")]
+		[string]$State
+	)
 
 	if (-not $script:TrayIcon) { return }
 
-	if ($TouchRequired -and $script:IconTouch) {
-		$script:TrayIcon.Icon = $script:IconTouch
-		$script:TrayIcon.Text = "YubiKey Tool - Touch Required!"
-	}
-	elseif (-not $TouchRequired -and $script:IconNormal) {
-		$script:TrayIcon.Icon = $script:IconNormal
-		$script:TrayIcon.Text = "YubiKey Tool"
+	switch ($State) {
+		"Touch" {
+			if ($script:IconTouch) {
+				$script:TrayIcon.Icon = $script:IconTouch
+				$script:TrayIcon.Text = "YubiKey Tool - Touch Required!"
+			}
+		}
+		"NoCard" {
+			if ($script:IconNoCard) {
+				$script:TrayIcon.Icon = $script:IconNoCard
+				$script:TrayIcon.Text = "YubiKey Tool - No Card"
+			}
+		}
+		"Error" {
+			if ($script:IconError) {
+				$script:TrayIcon.Icon = $script:IconError
+				$script:TrayIcon.Text = "YubiKey Tool - Error (Restarting...)"
+			}
+		}
+		default {
+			if ($script:IconNormal) {
+				$script:TrayIcon.Icon = $script:IconNormal
+				$script:TrayIcon.Text = "YubiKey Tool"
+			}
+		}
 	}
 }
 
@@ -626,9 +671,12 @@ function Start-GpgBridge {
 function Test-GpgCardStatus {
 	<#
 	.SYNOPSIS
-		Run gpg --card-status and detect hang
+		Run gpg --card-status and detect hang or error
 	.OUTPUTS
-		Boolean: $true = hang (waiting for touch), $false = completed normally
+		String: "Normal" = completed successfully
+		        "Touch" = hang (waiting for touch)
+		        "NoCard" = card not present or error (exit code 2)
+		        "Error" = other error
 	#>
 
 	$startTime = Get-Date
@@ -655,17 +703,34 @@ function Test-GpgCardStatus {
 		$elapsed = ((Get-Date) - $startTime).TotalMilliseconds
 
 		if ($completed) {
-			# Completed normally
+			# Completed (check exit code)
 			$exitCode = $process.ExitCode
+			# Read both stdout and stderr to prevent buffer deadlock
+			$null = $process.StandardOutput.ReadToEnd()
+			$stderr = $process.StandardError.ReadToEnd()
 			Write-Log "gpg --card-status completed (elapsed: ${elapsed}ms, exit code: $exitCode)" -Level DEBUG
 
 			# Cleanup process
 			$process.Dispose()
 
-			return $false
+			if ($exitCode -eq 0) {
+				return "Normal"
+			}
+			elseif ($exitCode -eq 2) {
+				# Card not present or similar error
+				if ($stderr -match "No such device|card not present|Card not present") {
+					Write-Log "No card detected: $stderr" -Level DEBUG
+					return "NoCard"
+				}
+				return "Error"
+			}
+			else {
+				Write-Log "gpg --card-status failed with exit code $exitCode : $stderr" -Level WARN
+				return "Error"
+			}
 		}
 		else {
-			# Timeout = hang
+			# Timeout = hang (waiting for touch)
 			Write-Log "gpg --card-status hang detected! (timeout: ${elapsed}ms)" -Level INFO
 
 			# Force terminate process
@@ -682,13 +747,13 @@ function Test-GpgCardStatus {
 				$process.Dispose()
 			}
 
-			return $true
+			return "Touch"
 		}
 	}
 	catch {
 		Write-Log "Error during gpg --card-status execution: $_" -Level ERROR
 		Write-Log "  Error details: $($_.Exception.Message)" -Level ERROR
-		return $false
+		return "Error"
 	}
 }
 
@@ -715,28 +780,126 @@ function Test-ManualGpgCardStatus {
 	Write-Host ""
 	Write-Host "Checking gpg --card-status..." -ForegroundColor Yellow
 
-	$isHanging = Test-GpgCardStatus
+	$status = Test-GpgCardStatus
 
 	Write-Host ""
-	if ($isHanging) {
-		Write-Host "[OK] Hang detected! Waiting for touch" -ForegroundColor Green
-		Write-Host "  Testing Toast notification..." -ForegroundColor Yellow
-		Show-ToastNotification -Title "gpg-agent" -Message "Please touch or PIN your YubiKey"
-		Write-Host "  Check if the notification appeared" -ForegroundColor Yellow
-	}
-	else {
-		Write-Host "[NG] Hang not detected" -ForegroundColor Red
-		Write-Host ""
-		Write-Host "Possible causes:" -ForegroundColor Yellow
-		Write-Host "  1. YubiKey touch policy is disabled" -ForegroundColor Yellow
-		Write-Host "     -> Check with: ykman openpgp info" -ForegroundColor Yellow
-		Write-Host "  2. Timeout setting is too short" -ForegroundColor Yellow
-		Write-Host "     -> Try: -HangTimeout 2000" -ForegroundColor Yellow
-		Write-Host "  3. GPG operation already completed" -ForegroundColor Yellow
-		Write-Host "     -> Try again with better timing" -ForegroundColor Yellow
+	switch ($status) {
+		"Touch" {
+			Write-Host "[OK] Hang detected! Waiting for touch" -ForegroundColor Green
+			Write-Host "  Testing Toast notification..." -ForegroundColor Yellow
+			Show-ToastNotification -Title "gpg-agent" -Message "Please touch or PIN your YubiKey"
+			Write-Host "  Check if the notification appeared" -ForegroundColor Yellow
+		}
+		"NoCard" {
+			Write-Host "[INFO] No card detected" -ForegroundColor Yellow
+			Write-Host "  YubiKey is not inserted or not recognized" -ForegroundColor Yellow
+		}
+		"Normal" {
+			Write-Host "[OK] Card status check completed normally" -ForegroundColor Green
+			Write-Host "  YubiKey is connected and responding" -ForegroundColor Green
+		}
+		default {
+			Write-Host "[NG] Error or unexpected state: $status" -ForegroundColor Red
+			Write-Host ""
+			Write-Host "Possible causes:" -ForegroundColor Yellow
+			Write-Host "  1. YubiKey touch policy is disabled" -ForegroundColor Yellow
+			Write-Host "     -> Check with: ykman openpgp info" -ForegroundColor Yellow
+			Write-Host "  2. Timeout setting is too short" -ForegroundColor Yellow
+			Write-Host "     -> Try: -HangTimeout 2000" -ForegroundColor Yellow
+			Write-Host "  3. GPG operation already completed" -ForegroundColor Yellow
+			Write-Host "     -> Try again with better timing" -ForegroundColor Yellow
+		}
 	}
 
 	Write-Host ""
+}
+
+function Update-CardState {
+	<#
+	.SYNOPSIS
+		Process GPG card status and update state machine
+	.PARAMETER Status
+		Card status from Test-GpgCardStatus
+	#>
+	param(
+		[Parameter(Mandatory)]
+		[string]$Status
+	)
+
+	switch ($Status) {
+		"Touch" {
+			if ($script:currentState -ne "Touch") {
+				$script:currentState = "Touch"
+				$script:touchDetectedTime = Get-Date
+				Write-Log "YubiKey touch waiting detected"
+				Set-TrayIconState -State "Touch"
+				Show-ToastNotification -Title "gpg-agent" -Message "Please touch or PIN your YubiKey"
+			}
+			else {
+				$elapsed = ((Get-Date) - $script:touchDetectedTime).TotalSeconds
+				Write-Log "   ... touch waiting continues (${elapsed}s)"
+			}
+		}
+		"NoCard" {
+			if ($script:currentState -ne "NoCard") {
+				Write-Log "YubiKey not detected (No card)"
+				Set-TrayIconState -State "NoCard"
+				$script:currentState = "NoCard"
+				$script:touchDetectedTime = $null
+			}
+		}
+		"Error" {
+			if ($script:currentState -ne "Error") {
+				Write-Log "GPG error detected, restarting agents..." -Level WARN
+				Set-TrayIconState -State "Error"
+				$script:currentState = "Error"
+				$script:touchDetectedTime = $null
+
+				try {
+					Stop-Agents
+					Start-Sleep -Milliseconds 500
+					Start-GpgAgent | Out-Null
+					Start-GpgBridge | Out-Null
+					Write-Log "Agents restarted automatically"
+					$script:TrayIcon.ShowBalloonTip(3000, "YubiKey Tool", "Agents restarted due to error", [System.Windows.Forms.ToolTipIcon]::Warning)
+				}
+				catch {
+					Write-Log "Failed to restart agents: $_" -Level ERROR
+				}
+			}
+		}
+		default {
+			if ($script:currentState -eq "Touch") {
+				Write-Log "YubiKey touch completed"
+			}
+			elseif ($script:currentState -eq "NoCard") {
+				Write-Log "YubiKey detected"
+			}
+			elseif ($script:currentState -eq "Error") {
+				Write-Log "GPG connection restored"
+			}
+
+			if ($script:currentState -ne "Normal") {
+				Set-TrayIconState -State "Normal"
+				$script:currentState = "Normal"
+				$script:touchDetectedTime = $null
+			}
+			elseif ($script:loopCount % 30 -eq 0) {
+				Write-Log "Monitoring... (loop: $script:loopCount)" -Level DEBUG
+			}
+		}
+	}
+
+	# Timeout handling (force reset after 30 seconds)
+	if ($script:currentState -eq "Touch" -and $script:touchDetectedTime) {
+		$elapsed = ((Get-Date) - $script:touchDetectedTime).TotalSeconds
+		if ($elapsed -gt 30) {
+			Write-Log "Touch waiting state timed out (30s), resetting state" -Level WARN
+			Set-TrayIconState -State "Normal"
+			$script:currentState = "Normal"
+			$script:touchDetectedTime = $null
+		}
+	}
 }
 
 function Start-PollingMode {
@@ -748,86 +911,54 @@ function Start-PollingMode {
 	Write-Log "Starting polling mode"
 	Write-Log "Check interval: ${CheckInterval}ms"
 
-	$script:touchWaiting = $false
+	$script:currentState = "Normal"
 	$script:touchDetectedTime = $null
-	$script:consecutiveNormalChecks = 0
 	$script:loopCount = 0
 
-	# Initialize tray icon
-	Initialize-TrayIcon
+	# Suppress unhandled exception dialogs
+	try {
+		[System.Windows.Forms.Application]::SetUnhandledExceptionMode([System.Windows.Forms.UnhandledExceptionMode]::CatchException)
+	}
+	catch {
+		Write-Log "SetUnhandledExceptionMode skipped (controls already exist)" -Level DEBUG
+	}
+	[System.Windows.Forms.Application]::add_ThreadException({
+		param($sender, $e)
+		if ($e.Exception -is [System.Management.Automation.PipelineStoppedException]) {
+			[System.Windows.Forms.Application]::Exit()
+		}
+		else {
+			Write-Log "Unhandled thread exception: $($e.Exception.Message)" -Level ERROR
+		}
+	})
 
+	Initialize-TrayIcon
 	Write-Log "Polling mode running (use tray icon to exit)"
 
-	# Create timer for polling
+	[Console]::TreatControlCAsInput = $false
+	$exitEventJob = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
+		[System.Windows.Forms.Application]::Exit()
+	}
+
 	$timer = New-Object System.Windows.Forms.Timer
 	$timer.Interval = $CheckInterval
 	$timer.Add_Tick({
-		$script:loopCount++
-
-		# Cleanup completed jobs every 10 iterations
-		if ($script:loopCount % 10 -eq 0) {
-			Get-Job | Where-Object { $_.State -eq 'Completed' } | Remove-Job -Force -ErrorAction SilentlyContinue
-		}
-
 		try {
-			$isHanging = Test-GpgCardStatus
+			$script:loopCount++
+
+			# Cleanup completed jobs periodically
+			if ($script:loopCount % 10 -eq 0) {
+				Get-Job | Where-Object { $_.State -eq 'Completed' } | Remove-Job -Force -ErrorAction SilentlyContinue
+			}
+
+			$status = try { Test-GpgCardStatus } catch { Write-Log "Error during check: $_" -Level ERROR; "Error" }
+			Update-CardState -Status $status
+		}
+		catch [System.Management.Automation.PipelineStoppedException] {
+			[System.Windows.Forms.Application]::Exit()
 		}
 		catch {
-			Write-Log "Error during check: $_" -Level ERROR
-			$isHanging = $false
-		}
-
-		if ($isHanging) {
-			# Hang detected
-			$script:consecutiveNormalChecks = 0
-
-			if (-not $script:touchWaiting) {
-				# New touch waiting state
-				$script:touchWaiting = $true
-				$script:touchDetectedTime = Get-Date
-
-				Write-Log "YubiKey touch waiting detected"
-				Set-TrayIconState -TouchRequired $true
-				Show-ToastNotification -Title "gpg-agent" -Message "Please touch or PIN your YubiKey"
-			}
-			else {
-				# Already in touch waiting state (continuing)
-				$elapsed = ((Get-Date) - $script:touchDetectedTime).TotalSeconds
-				Write-Log "   ... touch waiting continues (${elapsed}s)"
-			}
-		}
-		else {
-			# Normal (no hang)
-			$script:consecutiveNormalChecks++
-
-			if ($script:touchWaiting) {
-				# Returned to normal from touch waiting state
-				Write-Log "YubiKey touch completed"
-				Set-TrayIconState -TouchRequired $false
-
-				# Reset state
-				$script:touchWaiting = $false
-				$script:touchDetectedTime = $null
-				$script:consecutiveNormalChecks = 0
-			}
-			else {
-				# Normal state (periodic log)
-				if ($script:loopCount % 30 -eq 0) {
-					Write-Log "Monitoring... (loop: $script:loopCount)" -Level DEBUG
-				}
-			}
-		}
-
-		# Timeout handling (force reset if touch waiting state continues for over 30 seconds)
-		if ($script:touchWaiting -and $script:touchDetectedTime) {
-			$elapsed = ((Get-Date) - $script:touchDetectedTime).TotalSeconds
-			if ($elapsed -gt 30) {
-				Write-Log "Touch waiting state timed out (30s), resetting state" -Level WARN
-				Set-TrayIconState -TouchRequired $false
-				$script:touchWaiting = $false
-				$script:touchDetectedTime = $null
-				$script:consecutiveNormalChecks = 0
-			}
+			Write-Log "Error in timer tick: $_" -Level ERROR
 		}
 	})
 
@@ -837,6 +968,10 @@ function Start-PollingMode {
 		# Run Windows Forms message loop
 		[System.Windows.Forms.Application]::Run()
 	}
+	catch [System.Management.Automation.PipelineStoppedException] {
+		# Ctrl+C pressed - exit gracefully
+		Write-Log "Ctrl+C detected, exiting..." -Level INFO
+	}
 	catch {
 		Write-Log "Error in message loop: $_" -Level ERROR
 	}
@@ -845,6 +980,12 @@ function Start-PollingMode {
 		$timer.Dispose()
 
 		Write-Log "Stopping polling mode..."
+
+		# Unregister exit event handler
+		if ($exitEventJob) {
+			Unregister-Event -SourceIdentifier PowerShell.Exiting -ErrorAction SilentlyContinue
+			Remove-Job -Job $exitEventJob -Force -ErrorAction SilentlyContinue
+		}
 
 		# Cleanup tray icon
 		Remove-TrayIcon
