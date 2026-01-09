@@ -321,6 +321,7 @@ install_systemd_units_remote() {
 	mkdir -p "${systemd_dst}"
 
 	# gpg-agent.socket
+	rm -f "${systemd_dst}/gpg-agent.socket"
 	cat > "${systemd_dst}/gpg-agent.socket" << 'EOF'
 [Unit]
 Description=GPG Agent Socket (relay to gpg-bridge)
