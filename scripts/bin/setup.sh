@@ -11,9 +11,9 @@ set -euo pipefail
 #
 # Remote mode:
 #   - No Windows tools installed (gpg-bridge runs on Windows, not remote)
-#   - GPG: Relays via systemd-socket-proxyd to gpg-bridge (default: 127.0.0.1:4321)
+#   - GPG: SSH RemoteForward creates socket directly (no systemd relay needed)
 #   - SSH: Uses SSH ForwardAgent (no custom setup needed)
-#   - Optional: GPG_BRIDGE_HOST, GPG_BRIDGE_PORT
+#   - Installs gpg-socket-cleanup.service to remove stale socket on login
 #
 # Usage:
 #   WSL2:   ./setup.sh
@@ -60,12 +60,8 @@ check_dependencies() {
 		if ! command -v unzip &>/dev/null; then
 			missing+=("unzip")
 		fi
-	else
-		# Remote: needs systemd-socket-proxyd for TCP relay
-		if [ ! -x /usr/lib/systemd/systemd-socket-proxyd ]; then
-			missing+=("systemd-socket-proxyd")
-		fi
 	fi
+	# Remote: no special dependencies (SSH RemoteForward creates socket directly)
 
 	if [ ${#missing[@]} -gt 0 ]; then
 		echo "Error: Missing dependencies: ${missing[*]}" >&2
@@ -311,46 +307,40 @@ EOF
 install_systemd_units_remote() {
 	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
-	# Default to localhost (SSH RemoteForward) with gpg-bridge standard port
-	local gpg_host="${GPG_BRIDGE_HOST:-127.0.0.1}"
-	local gpg_port="${GPG_BRIDGE_PORT:-4321}"
-
 	echo "Installing systemd user units (Remote)..."
-	echo "  GPG Bridge: ${gpg_host}:${gpg_port}"
+	echo "  GPG: SSH RemoteForward creates socket directly"
 	echo "  SSH Agent: uses SSH ForwardAgent (no systemd unit needed)"
 	mkdir -p "${systemd_dst}"
 
-	# gpg-agent.socket
-	rm -f "${systemd_dst}/gpg-agent.socket"
-	cat > "${systemd_dst}/gpg-agent.socket" << 'EOF'
+	# Remove old gpg-agent.socket and gpg-agent@.service if they exist
+	if [ -f "${systemd_dst}/gpg-agent.socket" ]; then
+		systemctl --user disable --now gpg-agent.socket 2>/dev/null || true
+		rm -f "${systemd_dst}/gpg-agent.socket"
+		echo "[INFO] Removed old gpg-agent.socket"
+	fi
+	rm -f "${systemd_dst}/gpg-agent@.service"
+
+	# gpg-socket-cleanup.service
+	# Removes stale GPG socket on login so SSH RemoteForward can create it
+	cat > "${systemd_dst}/gpg-socket-cleanup.service" << 'EOF'
 [Unit]
-Description=GPG Agent Socket (relay to gpg-bridge)
+Description=Clean up GPG agent socket for SSH RemoteForward
 Documentation=man:gpg-agent(1)
-
-[Socket]
-ListenStream=%t/gnupg/S.gpg-agent
-SocketMode=0600
-DirectoryMode=0700
-Accept=true
-
-[Install]
-WantedBy=sockets.target
-EOF
-
-	# gpg-agent@.service
-	cat > "${systemd_dst}/gpg-agent@.service" << EOF
-[Unit]
-Description=GPG Agent Relay to gpg-bridge (connection %i)
-Documentation=man:gpg-agent(1)
-Requires=gpg-agent.socket
+# Run early in the login process, before SSH connection is fully established
+DefaultDependencies=no
+Before=default.target
 
 [Service]
-Type=simple
-ExecStart=/usr/lib/systemd/systemd-socket-proxyd ${gpg_host}:${gpg_port}
+Type=oneshot
+ExecStart=/bin/rm -f %t/gnupg/S.gpg-agent
+RemainAfterExit=no
+
+[Install]
+WantedBy=default.target
 EOF
 
 	systemctl --user daemon-reload
-	systemctl --user enable --now gpg-agent.socket
+	systemctl --user enable gpg-socket-cleanup.service
 
 	echo "[OK] Systemd units installed and enabled: ${systemd_dst}"
 }
@@ -405,7 +395,7 @@ install_shell_config_remote() {
 
 	# SSH: ForwardAgent sets SSH_AUTH_SOCK automatically, no config needed
 
-	# GPG agent config
+	# GPG agent config - check if socket exists (created by SSH RemoteForward)
 	cat > "${bashrc_d}/22-gpg-agent.sh" << 'EOF'
 #!/usr/bin/env bash
 
@@ -413,12 +403,13 @@ install_shell_config_remote() {
 __CLR_WARN='\033[0;33m'   # Yellow
 __CLR_RESET='\033[0m'
 
-# GPG agent
-if ! systemctl --user is-active --quiet gpg-agent.socket; then
-    echo -e "${__CLR_WARN}[WARN]${__CLR_RESET} gpg-agent.socket is not running"
-    echo "       Check with: journalctl --user -u gpg-agent.socket"
-    echo "       Start with: systemctl --user start gpg-agent.socket"
+# GPG agent socket (created by SSH RemoteForward)
+__GPG_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnupg/S.gpg-agent"
+if [ ! -S "${__GPG_SOCK}" ]; then
+    echo -e "${__CLR_WARN}[WARN]${__CLR_RESET} GPG agent socket not found: ${__GPG_SOCK}"
+    echo "       Ensure SSH RemoteForward is configured on your Windows host"
 fi
+unset __GPG_SOCK
 EOF
 	echo "[OK] Created ${bashrc_d}/22-gpg-agent.sh"
 }
