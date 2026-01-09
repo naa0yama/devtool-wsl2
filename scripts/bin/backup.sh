@@ -14,7 +14,6 @@ EXCLUDE_DIRS=(
 	".cache"
 	".docker"
 	".dotnet"
-	".local"
 	".vscode-remote-containers"
 	".vscode-server"
 )
