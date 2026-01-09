@@ -204,7 +204,7 @@ function Show-ToastNotification {
 			$script:TrayIcon.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
 			$script:TrayIcon.BalloonTipTitle = $Title
 			$script:TrayIcon.BalloonTipText = $Message
-			$script:TrayIcon.ShowBalloonTip(5000)
+			$script:TrayIcon.ShowBalloonTip(15000)
 			Write-Log "TrayIcon balloon displayed: $Title - $Message" -Level DEBUG
 			return
 		}
