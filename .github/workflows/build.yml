@@ -169,3 +169,14 @@ jobs:
           make_latest: ${{ env.MAKE_LATEST }}
           files: |
             ./dist/*
+
+      - name: Write installation command to summary
+        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ## Installation Command
+
+          ```powershell
+          EOF
+          echo "powershell -ExecutionPolicy Unrestricted -Command \"Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/${{ github.repository }}/refs/tags/${{ env.COMMIT_SHORT_SHA }}/devtool.ps1' -OutFile 'devtool.ps1'; .\devtool.ps1 -skipWSLDefault -Tag ${{ env.COMMIT_SHORT_SHA }}\"" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
