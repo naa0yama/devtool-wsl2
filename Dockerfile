@@ -342,7 +342,7 @@ cat <<- _DOC_ > ~/.bashrc.d/11-devtool-wsl2.sh
 #!/usr/bin/env bash
 
 # Setup
-if [ ! -f "\${HOME}/.cache/dwsl2-setup.lock" ]; then
+if [ ! -f "\${HOME}/.cache/devtool-setup.lock" ]; then
 	\$HOME/.local/bin/setup.sh
 fi
 
@@ -361,28 +361,28 @@ set -euxo pipefail
 cat <<- _DOC_ > ~/.bashrc.d/31-gitconfig-copy.sh
 #!/usr/bin/env bash
 
-# Colors
-__CLR_INFO='\033[0;36m'   # Cyan
-__CLR_WARN='\033[0;33m'   # Yellow
-__CLR_RESET='\033[0m'
+# Logger
+log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
 # Copy "~/.gitconfig" from Windows if it doesn't exist
 if [ ! -f "\${HOME}/.gitconfig" ]; then
 	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
-	echo -e "\${__CLR_INFO}[INFO]\${__CLR_RESET} Copy .gitconfig from Windows"
+	log_info "Copy .gitconfig from Windows"
 	cp -v "\${__USERPROFILE}/.gitconfig" ~/
 fi
 if [ ! -f "\${HOME}/.gitconfig.d" ]; then
 	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
-	echo -e "\${__CLR_INFO}[INFO]\${__CLR_RESET} Copy .gitconfig.d from Windows"
+	log_info "Copy .gitconfig.d from Windows"
 	cp -Rv "\${__USERPROFILE}/.gitconfig.d" ~/
 fi
 if [ ! -f "\${HOME}/.gitignore_global" ]; then
 	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
-	echo -e "\${__CLR_INFO}[INFO]\${__CLR_RESET} Copy .gitignore_global from Windows"
+	log_info "Copy .gitignore_global from Windows"
 	cp -v "\${__USERPROFILE}/.gitignore_global" ~/
 fi
 

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Colors
-__CLR_INFO='\033[0;36m'   # Cyan
-__CLR_WARN='\033[0;33m'   # Yellow
-__CLR_RESET='\033[0m'
+# Logger
+log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
 # shellcheck disable=SC2016 # $env:USERPROFILE is intentionally passed to PowerShell
 __WSL2_DIR="$(wslpath -u "$(powershell.exe -c '$env:USERPROFILE' | tr -d '\r')")/Documents/WSL2"
 
 # Skip restore if .restore-skip file exists
 if [ -f "${__WSL2_DIR}/.restore-skip" ]; then
-	echo -e "${__CLR_INFO}[INFO]${__CLR_RESET}Restore skipped: ${__WSL2_DIR}/.restore-skip exists"
+	log_info "Restore skipped: ${__WSL2_DIR}/.restore-skip exists"
 	exit 0
 fi
 
@@ -28,5 +28,5 @@ if [ -n "${__LAST_DUMP}" ]; then
 
 	pv "${__WSL2_DIR}/Backups/${__LAST_DUMP}" | tar xf - -C "${HOME}" --strip-components=2
 	date '+%Y-%m-%dT%H%M%S%z' > "${HOME}/.dwsl2-restore.lock"
-	echo -e "${__CLR_INFO}[INFO]${__CLR_RESET}Restore completed: ${__LAST_DUMP}"
+	log_info "Restore completed: ${__LAST_DUMP}"
 fi

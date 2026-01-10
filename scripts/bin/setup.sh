@@ -23,6 +23,11 @@ set -euo pipefail
 # Lock file: ~/.cache/devtool-setup.lock
 # =============================================================================
 
+# Logger
+log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCK_FILE="${HOME}/.cache/devtool-setup.lock"
 
@@ -64,7 +69,7 @@ check_dependencies() {
 	# Remote: no special dependencies (SSH RemoteForward creates socket directly)
 
 	if [ ${#missing[@]} -gt 0 ]; then
-		echo "Error: Missing dependencies: ${missing[*]}" >&2
+		log_erro "Missing dependencies: ${missing[*]}"
 		exit 1
 	fi
 }
@@ -92,8 +97,6 @@ install_npiperelay() {
 	local tempdir base_url expected_hash current_hash
 	base_url="https://github.com/albertony/npiperelay/releases/download/${NPIPERELAY_VERSION}"
 
-	echo "Checking npiperelay ${NPIPERELAY_VERSION} ..."
-
 	tempdir=$(mktemp -d)
 	cd "${tempdir}"
 
@@ -104,11 +107,11 @@ install_npiperelay() {
 		current_hash=$(sha256sum "${NPIPERELAY}" | cut -d' ' -f1)
 
 		if [ "${expected_hash}" = "${current_hash}" ]; then
-			echo "[OK] npiperelay.exe is up to date: ${NPIPERELAY}"
+			log_info "npiperelay ${NPIPERELAY_VERSION}: up to date"
 			rm -rf "${tempdir}"
 			return
 		else
-			echo "[INFO] npiperelay.exe update available (${NPIPERELAY_VERSION})"
+			log_warn "npiperelay: updating to ${NPIPERELAY_VERSION}"
 		fi
 	fi
 
@@ -119,15 +122,13 @@ install_npiperelay() {
 	cp -v npiperelay_windows_amd64.exe "${NPIPERELAY}"
 	chmod +x "${NPIPERELAY}"
 	rm -rf "${tempdir}"
-	echo "[OK] npiperelay ${NPIPERELAY_VERSION} installed: ${NPIPERELAY}"
+	log_info "npiperelay ${NPIPERELAY_VERSION}: installed: ${NPIPERELAY}"
 }
 
 install_gpg_bridge() {
 	local tempdir base_url zip_name new_hash current_hash
 	base_url="https://github.com/BusyJay/gpg-bridge/releases/download/${GPG_BRIDGE_VERSION}"
 	zip_name="gpg-bridge-${GPG_BRIDGE_VERSION}.zip"
-
-	echo "Checking gpg-bridge ${GPG_BRIDGE_VERSION} ..."
 
 	tempdir=$(mktemp -d)
 	cd "${tempdir}"
@@ -141,11 +142,11 @@ install_gpg_bridge() {
 		current_hash=$(sha256sum "${GPG_BRIDGE}" | cut -d' ' -f1)
 
 		if [ "${new_hash}" = "${current_hash}" ]; then
-			echo "[OK] gpg-bridge.exe is up to date: ${GPG_BRIDGE}"
+			log_info "gpg-bridge ${GPG_BRIDGE_VERSION}: up to date"
 			rm -rf "${tempdir}"
 			return
 		else
-			echo "[INFO] gpg-bridge.exe update available (${GPG_BRIDGE_VERSION})"
+			log_warn "gpg-bridge: updating to ${GPG_BRIDGE_VERSION}"
 		fi
 	fi
 
@@ -153,12 +154,12 @@ install_gpg_bridge() {
 	cp -v gpg-bridge.exe "${GPG_BRIDGE}"
 	chmod +x "${GPG_BRIDGE}"
 	rm -rf "${tempdir}"
-	echo "[OK] gpg-bridge ${GPG_BRIDGE_VERSION} installed: ${GPG_BRIDGE}"
+	log_info "gpg-bridge ${GPG_BRIDGE_VERSION}: installed: ${GPG_BRIDGE}"
 }
 
 install_yubikey_tool() {
 	if [ ! -f "${YUBIKEY_TOOL_SRC}" ]; then
-		echo "[INFO] yubikey-tool.ps1 source not found, skipping"
+		log_warn "yubikey-tool: source not found, skipping"
 		return
 	fi
 
@@ -170,17 +171,17 @@ install_yubikey_tool() {
 		dst_hash=$(sha256sum "${YUBIKEY_TOOL}" | cut -d' ' -f1)
 
 		if [ "${src_hash}" = "${dst_hash}" ]; then
-			echo "[OK] yubikey-tool.ps1 is up to date: ${YUBIKEY_TOOL}"
+			log_info "yubikey-tool: up to date"
 			return
 		else
 			needs_update=true
-			echo "[INFO] yubikey-tool.ps1 has been updated"
+			log_warn "yubikey-tool: updating"
 		fi
 	fi
 
 	mkdir -p "$(dirname "${YUBIKEY_TOOL}")"
 	cp -v "${YUBIKEY_TOOL_SRC}" "${YUBIKEY_TOOL}"
-	echo "[OK] yubikey-tool.ps1 installed: ${YUBIKEY_TOOL}"
+	log_info "yubikey-tool: installed: ${YUBIKEY_TOOL}"
 
 	if [ "${needs_update}" = true ]; then
 		echo ""
@@ -205,7 +206,7 @@ install_yubikey_tool() {
 configure_gpg() {
 	local gpg_conf="${GNUPGHOME:-$HOME/.gnupg}/gpg.conf"
 
-	echo "Configuring GPG..."
+	log_info "Configuring GPG..."
 
 	mkdir -p "$(dirname "${gpg_conf}")"
 	chmod 700 "$(dirname "${gpg_conf}")"
@@ -213,26 +214,26 @@ configure_gpg() {
 	if [ -f "${gpg_conf}" ]; then
 		if ! grep -q '^no-autostart' "${gpg_conf}"; then
 			echo "no-autostart" >> "${gpg_conf}"
-			echo "[OK] Added 'no-autostart' to ${gpg_conf}"
+			log_info "gpg.conf: added 'no-autostart'"
 		else
-			echo "[OK] 'no-autostart' already set in ${gpg_conf}"
+			log_info "gpg.conf: 'no-autostart' already set"
 		fi
 	else
 		echo "no-autostart" > "${gpg_conf}"
-		echo "[OK] Created ${gpg_conf} with 'no-autostart'"
+		log_info "${gpg_conf}: created with 'no-autostart'"
 	fi
 
 	# Mask local gpg-agent services to prevent conflicts
 	systemctl --user mask gpg-agent.service gpg-agent.socket \
 		gpg-agent-ssh.socket gpg-agent-extra.socket gpg-agent-browser.socket \
 		2>/dev/null || true
-	echo "[OK] Masked local gpg-agent systemd units"
+	log_info "gpg-agent systemd units: masked"
 }
 
 install_systemd_units_wsl2() {
 	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
-	echo "Installing systemd user units (WSL2)..."
+	log_info "Installing systemd user units (WSL2)..."
 	mkdir -p "${systemd_dst}"
 
 	# ssh-agent.socket
@@ -301,22 +302,20 @@ EOF
 	systemctl --user daemon-reload
 	systemctl --user enable --now ssh-agent.socket gpg-agent.socket
 
-	echo "[OK] Systemd units installed and enabled: ${systemd_dst}"
+	log_info "systemd units: installed"
 }
 
 install_systemd_units_remote() {
 	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
-	echo "Installing systemd user units (Remote)..."
-	echo "  GPG: SSH RemoteForward creates socket directly"
-	echo "  SSH Agent: uses SSH ForwardAgent (no systemd unit needed)"
+	log_info "Installing systemd user units (Remote)..."
 	mkdir -p "${systemd_dst}"
 
 	# Remove old gpg-agent.socket and gpg-agent@.service if they exist
 	if [ -f "${systemd_dst}/gpg-agent.socket" ]; then
 		systemctl --user disable --now gpg-agent.socket 2>/dev/null || true
 		rm -f "${systemd_dst}/gpg-agent.socket"
-		echo "[INFO] Removed old gpg-agent.socket"
+		log_info "gpg-agent.socket: removed (old)"
 	fi
 	rm -f "${systemd_dst}/gpg-agent@.service"
 
@@ -342,13 +341,13 @@ EOF
 	systemctl --user daemon-reload
 	systemctl --user enable gpg-socket-cleanup.service
 
-	echo "[OK] Systemd units installed and enabled: ${systemd_dst}"
+	log_info "systemd units: installed"
 }
 
 install_shell_config_wsl2() {
 	local bashrc_d="${HOME}/.bashrc.d"
 
-	echo "Installing shell configuration..."
+	log_info "Installing shell configuration..."
 	mkdir -p "${bashrc_d}"
 
 	# SSH agent config (WSL2: uses systemd socket)
@@ -367,7 +366,7 @@ if ! systemctl --user is-active --quiet ssh-agent.socket; then
     echo "       Start with: systemctl --user start ssh-agent.socket"
 fi
 EOF
-	echo "[OK] Created ${bashrc_d}/21-ssh-agent.sh"
+	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
 
 	# GPG agent config
 	cat > "${bashrc_d}/22-gpg-agent.sh" << 'EOF'
@@ -384,13 +383,13 @@ if ! systemctl --user is-active --quiet gpg-agent.socket; then
     echo "       Start with: systemctl --user start gpg-agent.socket"
 fi
 EOF
-	echo "[OK] Created ${bashrc_d}/22-gpg-agent.sh"
+	log_info "Created: ${bashrc_d}/22-gpg-agent.sh"
 }
 
 install_shell_config_remote() {
 	local bashrc_d="${HOME}/.bashrc.d"
 
-	echo "Installing shell configuration..."
+	log_info "Installing shell configuration..."
 	mkdir -p "${bashrc_d}"
 
 	# SSH: ForwardAgent sets SSH_AUTH_SOCK automatically, no config needed
@@ -411,7 +410,7 @@ if [ ! -S "${__GPG_SOCK}" ]; then
 fi
 unset __GPG_SOCK
 EOF
-	echo "[OK] Created ${bashrc_d}/22-gpg-agent.sh"
+	log_info "Created: ${bashrc_d}/22-gpg-agent.sh"
 }
 
 # -----------------------------------------------------------------------------
@@ -426,7 +425,7 @@ main_wsl2() {
 	check_dependencies
 	setup_wsl2_vars
 
-	echo "Windows install directory: ${WIN_INSTALL_DIR}"
+	log_info "Windows install directory: ${WIN_INSTALL_DIR}"
 	echo ""
 
 	install_npiperelay
@@ -445,7 +444,7 @@ main_wsl2() {
 	echo " Setup complete!"
 	echo "============================================"
 	echo ""
-	echo "To re-run setup: rm ${LOCK_FILE}"
+	log_info "To re-run setup: rm ${LOCK_FILE}"
 }
 
 main_remote() {
