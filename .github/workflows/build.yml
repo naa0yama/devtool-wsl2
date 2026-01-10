@@ -179,7 +179,7 @@ jobs:
           \`\`\`powershell
           \$tag = '${{ env.COMMIT_SHORT_SHA }}'
           \$repo = '${{ github.repository }}'
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/\$repo/refs/tags/\$tag/devtool.ps1" -OutFile 'devtool.ps1'
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/\$repo/refs/heads/${{ github.ref_name }}/devtool.ps1" -OutFile 'devtool.ps1'
           .\devtool.ps1 -skipBackupAndRestore -skipWSLDefault -Tag \$tag
           \`\`\`
           EOF
