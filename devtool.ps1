@@ -2,11 +2,11 @@
 
 param (
 	[string]$Tag,
-	[switch]$Debug
+	[switch]$Debug,
 	[switch]$ImportForce,
 	[switch]$skipBackupAndRestore,
 	[switch]$skipWSLDefault,
-	[switch]$skipWSLImport,
+	[switch]$skipWSLImport
 )
 $env:WSL_UTF8=1
 
@@ -312,12 +312,12 @@ function Combine-Parts {
 
 function Import-WSL {
 	param (
-		[bool]$ImportForce           = $false
+		[bool]$ImportForce           = $false,
 		[bool]$skipBackupAndRestore  = $false,
 		[bool]$skipWSLDefault        = $false,
 		[string]$tag_name,
 		[string]$tarGzFile,
-		[string]$wslPath,
+		[string]$wslPath
 	)
 
 	if ($skipBackupAndRestore) {
@@ -426,11 +426,11 @@ function Cleanup-DownloadPath {
 function Main {
 	param (
 		[string]$Tag,
-		[switch]$Debug
+		[switch]$Debug,
 		[switch]$ImportForce,
 		[switch]$skipBackupAndRestore,
 		[switch]$skipWSLDefault,
-		[switch]$skipWSLImport,
+		[switch]$skipWSLImport
 	)
 	$ownerRepo = "naa0yama/devtool-wsl2"
 	Write-Log "[DEBUG] Starting Main function with parameters: Tag=$Tag, skipWSLImport=$skipWSLImport, skipWSLDefault=$skipWSLDefault, skipBackupAndRestore=$skipBackupAndRestore, ImportForce=$ImportForce, Debug=$Debug"
