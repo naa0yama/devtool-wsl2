@@ -2,10 +2,11 @@
 
 param (
 	[string]$Tag,
-	[switch]$skipWSLImport,
-	[switch]$skipWSLDefault,
-	[switch]$ImportForce,
 	[switch]$Debug
+	[switch]$ImportForce,
+	[switch]$skipBackupAndRestore,
+	[switch]$skipWSLDefault,
+	[switch]$skipWSLImport,
 )
 $env:WSL_UTF8=1
 
@@ -311,35 +312,46 @@ function Combine-Parts {
 
 function Import-WSL {
 	param (
-		[string]$wslPath,
+		[bool]$ImportForce           = $false
+		[bool]$skipBackupAndRestore  = $false,
+		[bool]$skipWSLDefault        = $false,
 		[string]$tag_name,
 		[string]$tarGzFile,
-		[bool]$skipWSLDefault = $false,
-		[bool]$ImportForce    = $false
+		[string]$wslPath,
 	)
 
-	Write-Log "`nExecuting backup script on current default WSL distribution..."
-	try {
-		$wslListOutput = wsl --list --verbose
-		$defaultDistro = $null
+	if ($skipBackupAndRestore) {
+		Write-Log "`nSkipping backup (skipBackupAndRestore is enabled)"
+		# Create .restore-skip file to skip restore on first boot
+		$restoreSkipFile = Join-Path $wslPath ".restore-skip"
+		if (-not (Test-Path $restoreSkipFile)) {
+			New-Item -ItemType File -Path $restoreSkipFile -Force | Out-Null
+			Write-Log "Created restore-skip file: $restoreSkipFile"
+		}
+	} else {
+		Write-Log "`nExecuting backup script on current default WSL distribution..."
+		try {
+			$wslListOutput = wsl --list --verbose
+			$defaultDistro = $null
 
-		foreach ($line in $wslListOutput) {
-			if ($line -match '^\s*\*\s*(\S+)') {
-				$defaultDistro = $matches[1]
-				break
+			foreach ($line in $wslListOutput) {
+				if ($line -match '^\s*\*\s*(\S+)') {
+					$defaultDistro = $matches[1]
+					break
+				}
 			}
-		}
 
-		if ($defaultDistro) {
-			Write-Log "Current default WSL distribution: $defaultDistro"
-			Write-Log "Running backup script on $defaultDistro..."
-			wsl -d $defaultDistro bash ~/.local/bin/backup.sh
-			Write-Log "Backup script executed successfully on $defaultDistro."
-		} else {
-			Write-Log "No default WSL distribution found." -ForegroundColor Yellow
+			if ($defaultDistro) {
+				Write-Log "Current default WSL distribution: $defaultDistro"
+				Write-Log "Running backup script on $defaultDistro..."
+				wsl -d $defaultDistro bash ~/.local/bin/backup.sh
+				Write-Log "Backup script executed successfully on $defaultDistro."
+			} else {
+				Write-Log "No default WSL distribution found." -ForegroundColor Yellow
+			}
+		} catch {
+			Write-Log "Error executing backup script on default WSL distribution: $_" -ForegroundColor Red
 		}
-	} catch {
-		Write-Log "Error executing backup script on default WSL distribution: $_" -ForegroundColor Red
 	}
 
 	if ($ImportForce) {
@@ -373,6 +385,15 @@ function Import-WSL {
 		Write-Log "`nSetting WSL default Distribution"
 		wsl --set-default dwsl2-$tag_name
 	}
+
+	# Remove .restore-skip file after successful import
+	if ($skipBackupAndRestore) {
+		$restoreSkipFile = Join-Path $wslPath ".restore-skip"
+		if (Test-Path $restoreSkipFile) {
+			Remove-Item -Path $restoreSkipFile -Force
+			Write-Log "Removed restore-skip file: $restoreSkipFile"
+		}
+	}
 }
 
 function Create-Dir {
@@ -405,13 +426,14 @@ function Cleanup-DownloadPath {
 function Main {
 	param (
 		[string]$Tag,
-		[switch]$skipWSLImport,
-		[switch]$skipWSLDefault,
-		[switch]$ImportForce,
 		[switch]$Debug
+		[switch]$ImportForce,
+		[switch]$skipBackupAndRestore,
+		[switch]$skipWSLDefault,
+		[switch]$skipWSLImport,
 	)
 	$ownerRepo = "naa0yama/devtool-wsl2"
-	Write-Log "[DEBUG] Starting Main function with parameters: Tag=$Tag, skipWSLImport=$skipWSLImport, skipWSLDefault=$skipWSLDefault, ImportForce=$ImportForce, Debug=$Debug"
+	Write-Log "[DEBUG] Starting Main function with parameters: Tag=$Tag, skipWSLImport=$skipWSLImport, skipWSLDefault=$skipWSLDefault, skipBackupAndRestore=$skipBackupAndRestore, ImportForce=$ImportForce, Debug=$Debug"
 
 	$owner = "naa0yama"
 	$repo = "devtool-wsl2"
@@ -460,10 +482,11 @@ function Main {
 		Write-Log "// Downloaded Path`t`t$downloadPath"
 		Write-Log "//"
 		Write-Log "// Options:"
-		Write-Log "//`tTag`t`t`t$Tag"
-		Write-Log "//`tskipWSLImport`t`t$skipWSLImport"
-		Write-Log "//`tskipWSLDefault`t`t$skipWSLDefault"
-		Write-Log "//`tImportForce`t`t$ImportForce"
+		Write-Log "//`tTag`t`t`t`t$Tag"
+		Write-Log "//`tskipWSLImport`t`t`t$skipWSLImport"
+		Write-Log "//`tskipWSLDefault`t`t`t$skipWSLDefault"
+		Write-Log "//`tskipBackupAndRestore`t`t$skipBackupAndRestore"
+		Write-Log "//`tImportForce`t`t`t$ImportForce"
 		Write-Log "//"
 
 		Create-Dir $wslPath $downloadPath
@@ -478,7 +501,8 @@ function Main {
 
 			if (-not $skipWSLImport -and $tarGzFile) {
 				Import-WSL -wslPath $wslPath -tag_name $tag_name `
-					-tarGzFile $tarGzFile -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce
+					-tarGzFile $tarGzFile -skipWSLDefault:$skipWSLDefault `
+					-skipBackupAndRestore:$skipBackupAndRestore -ImportForce:$ImportForce
 			}
 		} else {
 			Write-Log "`n`nHash verification failed. Aborting combination process." -ForegroundColor Red
@@ -521,4 +545,5 @@ if ($Debug) {
 }
 
 # 通常モードの場合は、通常の処理を実行
-Main -Tag $Tag -skipWSLImport:$skipWSLImport -skipWSLDefault:$skipWSLDefault -ImportForce:$ImportForce -Debug:$Debug
+Main -Tag $Tag -skipWSLImport:$skipWSLImport -skipWSLDefault:$skipWSLDefault `
+	-skipBackupAndRestore:$skipBackupAndRestore -ImportForce:$ImportForce -Debug:$Debug

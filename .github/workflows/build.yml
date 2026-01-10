@@ -177,10 +177,9 @@ jobs:
           ## Installation Command
 
           \`\`\`powershell
-          powershell -ExecutionPolicy Unrestricted -Command \`
-            "Invoke-WebRequest \`
-              -Uri 'https://raw.githubusercontent.com/${{ github.repository }}/refs/tags/${{ env.COMMIT_SHORT_SHA }}/devtool.ps1' \`
-              -OutFile 'devtool.ps1';
-             .\devtool.ps1 -skipWSLDefault -Tag ${{ env.COMMIT_SHORT_SHA }}"
+          \$tag = '${{ env.COMMIT_SHORT_SHA }}'
+          \$repo = '${{ github.repository }}'
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/\$repo/refs/tags/\$tag/devtool.ps1" -OutFile 'devtool.ps1'
+          .\devtool.ps1 -skipBackupAndRestore -skipWSLDefault -Tag \$tag
           \`\`\`
           EOF

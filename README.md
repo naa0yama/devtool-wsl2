@@ -60,6 +60,8 @@ powershell -ExecutionPolicy Unrestricted -Command "Invoke-WebRequest -Uri 'https
 
 フラグオプションをいくつか用意しています
 
+- `-skipBackupAndRestore`
+  - 既存 default 環境の Backup & Restore をスキップします
 - `-Tag`
   - Release Tag を指定してダウンロードする場合に指定します。
 - `-skipWSLImport`
@@ -90,7 +92,7 @@ wsl -l -v
 ```
 
 > [!TIP]
-> このスクリプトを使って展開された WSL2 は展開時に以前の defualt WSL2 環境でバックアップしたデータから自動で下記戻します。
+> このスクリプトを使って展開された WSL2 は展開時に以前の defualt WSL2 環境でバックアップしたデータから自動で書き戻します。
 > この機能をオフにする場合 `%USERPROFILE%/Documents/WSL2` に `.restore-skip` というファイルを配置してください。
 > これでリストア処理をスキップします。
 > 
