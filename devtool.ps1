@@ -496,7 +496,7 @@ function Main {
 					-skipBackupAndRestore:$skipBackupAndRestore -ImportForce:$ImportForce
 			}
 
-			Write-Log "`n`n Tool tips"
+			Write-Log "Tool tips"
 			Write-Log "	* WSL list   wsl -l -v"
 			Write-Log "	* WSL exec   wsl -d $tag_name exec bash -l"
 			Write-Log "	* WSL remove wsl --unregister $tag_name"
