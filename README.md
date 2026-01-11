@@ -23,16 +23,15 @@ WSL2 の開発環境を自動構築するセット\
   - vim
   - wget
 
-| Common software                                               | Latest software version                                                |
-| :------------------------------------------------------------ | :--------------------------------------------------------------------- |
-| [Docker Engine](https://gitub.com/moby/moby)                  | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)           |
-| [asdf](https://github.com/asdf-vm/asdf)                       | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)        |
-| [dprint](https://github.com/dprint/dprint)                    | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)       |
+| Common software                                                 | Latest software version                                                 |
+| :-------------------------------------------------------------- | :---------------------------------------------------------------------- |
+| [Docker Engine](https://github.com/moby/moby)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)            |
+| [asdf](https://github.com/asdf-vm/asdf)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)         |
+| [dprint](https://github.com/dprint/dprint)                      | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)        |
 | [albertony/npiperelay](https://github.com/albertony/npiperelay) | ![GitHub Tag](https://img.shields.io/github/v/tag/albertony/npiperelay) |
 
 | asdf Plugins                                        | asdf Plugin URL                                                                   | Latest software version                                                 |
 | :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------- |
-| [assh](https://github.com/moul/assh)                | [zekker6/asdf-assh](https://github.com/zekker6/asdf-assh)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/moul/assh)            |
 | [aws-cli](https://github.com/aws/aws-cli/)          | [MetricMike/asdf-awscli](https://github.com/MetricMike/asdf-awscli)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)          |
 | [fzf](https://github.com/junegunn/fzf)              | [asdf-fzf](https://github.com/kompiro/asdf-fzf)                                   | ![GitHub Tag](https://img.shields.io/github/v/tag/junegunn/fzf)         |
 | [ghq](https://github.com/x-motemen/ghq)             | [kajisha/asdf-ghq](https://github.com/kajisha/asdf-ghq)                           | ![GitHub Tag](https://img.shields.io/github/v/tag/x-motemen/ghq)        |
@@ -44,11 +43,11 @@ WSL2 の開発環境を自動構築するセット\
 | [Terraform](https://github.com/hashicorp/terraform) | [asdf-community/asdf-hashicorp](https://github.com/asdf-community/asdf-hashicorp) | ![GitHub Tag](https://img.shields.io/github/v/tag/hashicorp/terraform)  |
 | [Tmux](https://github.com/tmux/tmux)                | [aphecetche/asdf-tmux](https://github.com/aphecetche/asdf-tmux)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/tmux/tmux)            |
 
-| Rust Tools                                       | Latest release                                                          |
-| :----------------------------------------------- | :---------------------------------------------------------------------- |
-| [dua-cli](https://github.com/Byron/dua-cli)      | ![GitHub Tag](https://img.shields.io/github/v/tag/Byron/dua-cli)        |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | ![GitHub Tag](https://img.shields.io/github/v/tag/BurntSushi/ripgrep)   |
-| [topgrade](https:topgrade-rs/topgrade)           | ![GitHub Tag](https://img.shields.io/github/v/tag/topgrade-rs/topgrade) |
+| Rust Tools                                          | Latest release                                                          |
+| :-------------------------------------------------- | :---------------------------------------------------------------------- |
+| [dua-cli](https://github.com/Byron/dua-cli)         | ![GitHub Tag](https://img.shields.io/github/v/tag/Byron/dua-cli)        |
+| [ripgrep](https://github.com/BurntSushi/ripgrep)    | ![GitHub Tag](https://img.shields.io/github/v/tag/BurntSushi/ripgrep)   |
+| [topgrade](https://github.com/topgrade-rs/topgrade) | ![GitHub Tag](https://img.shields.io/github/v/tag/topgrade-rs/topgrade) |
 
 ## 使い方
 
@@ -92,13 +91,12 @@ wsl -l -v
 ```
 
 > [!TIP]
-> このスクリプトを使って展開された WSL2 は展開時に以前の defualt WSL2 環境でバックアップしたデータから自動で書き戻します。
+> このスクリプトを使って展開された WSL2 は展開時に以前の default WSL2 環境でバックアップしたデータから自動で書き戻します。
 > この機能をオフにする場合 `%USERPROFILE%/Documents/WSL2` に `.restore-skip` というファイルを配置してください。
 > これでリストア処理をスキップします。
-> 
+>
 > ```powershell
 > New-Item -Path "$env:USERPROFILE/Documents/WSL2/.restore-skip"
-> 
 > ```
 
 実際に起動してみます。\
@@ -115,7 +113,6 @@ asdf が使えるか確認しておきましょう。\
 
 ```powershelll
 > asdf current
-assh            2.16.0          /home/user/.tool-versions
 aws-sam-cli     1.115.0         /home/user/.tool-versions
 awscli          2.15.19         /home/user/.tool-versions
 fzf             0.50.0          /home/user/.tool-versions
@@ -131,8 +128,8 @@ tmux            3.4             /home/user/.tool-versions
 ### デフォルトに設定する場合
 
 この手順では default に設定していないためディストリビューションを指定して起動する必要があります。\
-手間を省くために defualt に設定すると `wsl` コマンドで起動してくる事になります\
-下記の例では `dwsl2-8718ff1` を defualt に設定します。\
+手間を省くために default に設定すると `wsl` コマンドで起動してくる事になります\
+下記の例では `dwsl2-8718ff1` を default に設定します。\
 `*` の付いている物が default 起動の WSL です。
 
 ```powershell
