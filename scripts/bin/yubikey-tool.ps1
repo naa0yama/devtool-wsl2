@@ -335,9 +335,7 @@ function Initialize-TrayIcon {
 	$menuRestart.Text = "Restart Agents"
 	$menuRestart.Add_Click({
 		Write-Log "Restarting agents from tray menu..."
-		Stop-Agents
-		Start-GpgAgent | Out-Null
-		Start-GpgBridge | Out-Null
+		Restart-Agents | Out-Null
 		$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents restarted", [System.Windows.Forms.ToolTipIcon]::Info)
 	})
 	$contextMenu.Items.Add($menuRestart) | Out-Null
@@ -561,31 +559,141 @@ function Unregister-Startup {
 	}
 }
 
+function Stop-ProcessByName {
+	<#
+	.SYNOPSIS
+		Helper function to stop processes by name
+	.PARAMETER Name
+		Process name to stop
+	.OUTPUTS
+		Number of processes terminated
+	#>
+	param(
+		[Parameter(Mandatory)]
+		[string]$Name
+	)
+
+	$procs = Get-Process -Name $Name -ErrorAction SilentlyContinue
+	if ($procs) {
+		$count = @($procs).Count
+		Write-Log "Terminating $Name processes: $count"
+		$procs | Stop-Process -Force -ErrorAction SilentlyContinue
+		return $count
+	}
+	return 0
+}
+
+function Stop-ExistingInstances {
+	<#
+	.SYNOPSIS
+		Stop any existing yubikey-tool.ps1 instances
+	#>
+
+	$currentPid = $PID
+	Write-Log "Checking for existing yubikey-tool instances (current PID: $currentPid)..."
+
+	try {
+		$procs = Get-CimInstance Win32_Process -Filter "Name = 'pwsh.exe' OR Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
+			Where-Object {
+				$_.ProcessId -ne $currentPid -and
+				$_.CommandLine -match "yubikey-tool\.ps1"
+			}
+
+		if ($procs) {
+			Write-Log "Found $(@($procs).Count) existing instance(s), terminating..."
+			foreach ($proc in $procs) {
+				try {
+					Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+					Write-Log "Terminated PID: $($proc.ProcessId)"
+				}
+				catch {
+					Write-Log "Failed to terminate PID $($proc.ProcessId): $_" -Level WARN
+				}
+			}
+		}
+		else {
+			Write-Log "No existing instances found" -Level DEBUG
+		}
+	}
+	catch {
+		Write-Log "Error checking for existing instances: $_" -Level WARN
+	}
+}
+
 function Stop-Agents {
 	<#
 	.SYNOPSIS
-		Safely stop gpg-agent and gpg-bridge processes
+		Safely stop gpg-agent, gpg-bridge, and gpg processes
 	#>
 
 	Write-Log "Stopping existing GPG processes..."
 
-	# Stop gpg-agent
-	$gpgAgentProcesses = Get-Process -Name "gpg-agent" -ErrorAction SilentlyContinue
-	if ($gpgAgentProcesses) {
-		Write-Log "Terminating gpg-agent processes: $($gpgAgentProcesses.Count)"
-		$gpgAgentProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+	$terminated = 0
+	$terminated += Stop-ProcessByName -Name "gpg"
+	$terminated += Stop-ProcessByName -Name "gpg-agent"
+	$terminated += Stop-ProcessByName -Name "gpg-bridge"
+
+	if ($terminated -gt 0) {
 		Start-Sleep -Milliseconds 500
 	}
 
-	# Stop gpg-bridge
-	$processes = Get-Process -Name "gpg-bridge" -ErrorAction SilentlyContinue
-	if ($processes) {
-		Write-Log "Terminating gpg-bridge processes: $($processes.Count)"
-		$processes | Stop-Process -Force -ErrorAction SilentlyContinue
+	Write-Log "GPG processes stopped"
+}
+
+function Restart-Agents {
+	<#
+	.SYNOPSIS
+		Stop agents, check stale pipes, and start agents
+	.OUTPUTS
+		Boolean indicating success
+	#>
+
+	Stop-Agents
+	Test-StalePipes | Out-Null
+	$agentOk = Start-GpgAgent
+	$bridgeOk = Start-GpgBridge
+	return ($agentOk -and $bridgeOk)
+}
+
+function Test-StalePipes {
+	<#
+	.SYNOPSIS
+		Check for stale GPG/SSH named pipes and warn if found
+	#>
+
+	Write-Log "Checking for stale named pipes..." -Level DEBUG
+
+	$stalePipes = @()
+
+	try {
+		# Get all named pipes
+		$pipes = Get-ChildItem "\\.\pipe\" -ErrorAction SilentlyContinue |
+			Where-Object {
+				$_.Name -match "^(openssh-ssh-agent)"
+			}
+
+		if ($pipes) {
+			foreach ($pipe in $pipes) {
+				$stalePipes += $pipe.Name
+				Write-Log "Stale pipe detected: $($pipe.Name)" -Level WARN
+			}
+		}
+	}
+	catch {
+		Write-Log "Error checking named pipes: $_" -Level WARN
 	}
 
-	Start-Sleep -Milliseconds 500
-	Write-Log "GPG processes stopped"
+	if ($stalePipes.Count -gt 0) {
+		$pipeList = $stalePipes -join ", "
+		$message = "Stale pipes detected: $pipeList. This may cause connection issues."
+		Write-Log $message -Level WARN
+		Show-ToastNotification -Title "YubiKey Tool Warning" -Message $message
+	}
+	else {
+		Write-Log "No stale pipes found" -Level DEBUG
+	}
+
+	return $stalePipes
 }
 
 function Start-GpgAgent {
@@ -856,10 +964,7 @@ function Update-CardState {
 				$script:touchDetectedTime = $null
 
 				try {
-					Stop-Agents
-					Start-Sleep -Milliseconds 500
-					Start-GpgAgent | Out-Null
-					Start-GpgBridge | Out-Null
+					Restart-Agents | Out-Null
 					Write-Log "Agents restarted automatically"
 					$script:TrayIcon.ShowBalloonTip(3000, "YubiKey Tool", "Agents restarted due to error", [System.Windows.Forms.ToolTipIcon]::Warning)
 				}
@@ -1034,10 +1139,11 @@ if ($RemoveStartup) {
 	exit 0
 }
 
+# Stop existing yubikey-tool instances first
+Stop-ExistingInstances
+
 # Restart gpg-agent / gpg-bridge
-Stop-Agents
-Start-GpgAgent | Out-Null
-Start-GpgBridge | Out-Null
+Restart-Agents | Out-Null
 
 # Start touch detection
 Start-PollingMode
