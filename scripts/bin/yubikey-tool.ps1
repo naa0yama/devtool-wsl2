@@ -658,7 +658,7 @@ function Restart-Agents {
 function Test-StalePipes {
 	<#
 	.SYNOPSIS
-		Check for stale GPG/SSH named pipes and warn if found
+		Check for stale SSH named pipes and warn if found
 	#>
 
 	Write-Log "Checking for stale named pipes..." -Level DEBUG
