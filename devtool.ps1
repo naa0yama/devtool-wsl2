@@ -385,15 +385,6 @@ function Import-WSL {
 		Write-Log "`nSetting WSL default Distribution"
 		wsl --set-default dwsl2-$tag_name
 	}
-
-	# Remove .restore-skip file after successful import
-	if ($skipBackupAndRestore) {
-		$restoreSkipFile = Join-Path $wslPath ".restore-skip"
-		if (Test-Path $restoreSkipFile) {
-			Remove-Item -Path $restoreSkipFile -Force
-			Write-Log "Removed restore-skip file: $restoreSkipFile"
-		}
-	}
 }
 
 function Create-Dir {
