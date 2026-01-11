@@ -25,10 +25,11 @@ WSL2 の開発環境を自動構築するセット\
 
 | Common software                                                 | Latest software version                                                 |
 | :-------------------------------------------------------------- | :---------------------------------------------------------------------- |
-| [Docker Engine](https://github.com/moby/moby)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)            |
-| [asdf](https://github.com/asdf-vm/asdf)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)         |
-| [dprint](https://github.com/dprint/dprint)                      | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)        |
 | [albertony/npiperelay](https://github.com/albertony/npiperelay) | ![GitHub Tag](https://img.shields.io/github/v/tag/albertony/npiperelay) |
+| [asdf](https://github.com/asdf-vm/asdf)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)         |
+| [BusyJay/gpg-bridge](https://github.com/BusyJay/gpg-bridge)     | ![GitHub Tag](https://img.shields.io/github/v/tag/BusyJay/gpg-bridge)   |
+| [Docker Engine](https://github.com/moby/moby)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)            |
+| [dprint](https://github.com/dprint/dprint)                      | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)        |
 
 | asdf Plugins                                        | asdf Plugin URL                                                                   | Latest software version                                                 |
 | :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------- |
