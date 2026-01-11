@@ -341,14 +341,14 @@ set -euxo pipefail
 cat <<- _DOC_ > ~/.bashrc.d/11-devtool-wsl2.sh
 #!/usr/bin/env bash
 
-# Setup
-if [ ! -f "\${HOME}/.cache/devtool-setup.lock" ]; then
-	\$HOME/.local/bin/setup.sh
-fi
-
 # Restore dump
 if [ ! -f "\${HOME}/.dwsl2-restore.lock" ]; then
-	\$HOME/.local/bin/restore.sh
+	/opt/devtool/bin/restore.sh
+fi
+
+# Setup
+if [ ! -f "\${HOME}/.cache/devtool-setup.lock" ]; then
+	/opt/devtool/bin/setup.sh
 fi
 
 _DOC_
@@ -400,10 +400,7 @@ ln -sf /dev/null /etc/systemd/user/gpg-agent.service
 
 EOF
 
-COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/setup.sh		/home/${DEFAULT_USERNAME}/.local/bin/setup.sh
-COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/yubikey-tool.ps1	/home/${DEFAULT_USERNAME}/.local/bin/yubikey-tool.ps1
-COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/restore.sh		/home/${DEFAULT_USERNAME}/.local/bin/restore.sh
-COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts/bin/backup.sh		/home/${DEFAULT_USERNAME}/.local/bin/backup.sh
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts		/opt/devtool
 
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root
