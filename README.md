@@ -50,6 +50,12 @@ WSL2 の開発環境を自動構築するセット\
 | [ripgrep](https://github.com/BurntSushi/ripgrep)    | ![GitHub Tag](https://img.shields.io/github/v/tag/BurntSushi/ripgrep)   |
 | [topgrade](https://github.com/topgrade-rs/topgrade) | ![GitHub Tag](https://img.shields.io/github/v/tag/topgrade-rs/topgrade) |
 
+## ssh-agent,gpg-agent との統合
+
+2026/01/11 の更新から WSL2 の初回起動時に Windows 11 側に `npiperelay.exe`, `gpg-bridge.exe`, `yubikey-tool.ps1` のツールを自動ダウンロードし `%USERPROFILE%/.local/bin` に配置するようになりました。 `yubikey-tool.ps1` は自動起動にも設定され `gpg-agent`, `gpg-bridge` の自動起動、タッチ/PIN入力の通知を実施するタスクトレイアプリケーションです。
+
+これにより WSL2 上でも手軽に GPG 鍵を利用でき、 `gpg-bridge` を使うことで SSH 先でも GPG 署名できるようになりました。
+
 ## 使い方
 
 `Windows Terminal` などで PowerShell を開き下記のコマンドを投入すると最新の GitHub Releases から WSL2 イメージを取得し WSL に登録します
