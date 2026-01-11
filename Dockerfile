@@ -8,8 +8,6 @@ ARG DEBIAN_FRONTEND=noninteractive \
 ARG ASDF_VERSION="v0.18.0"
 ## renovate: datasource=github-releases packageName=edprint/dprint versioning=semver automerge=true
 ARG DPRINT_VERSION="0.50.0"
-## renovate: datasource=github-releases packageName=mame/wsl2-ssh-agent versioning=semver automerge=true
-ARG WSL2SSHAGENT_VERSION="v0.9.6"
 
 # retry dns and some http codes that might be transient errors
 ARG CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
@@ -25,8 +23,7 @@ ARG CURL_OPTS \
 	DEFAULT_GID=1100 \
 	DEFAULT_USERNAME \
 	ASDF_VERSION \
-	DPRINT_VERSION \
-	WSL2SSHAGENT_VERSION
+	DPRINT_VERSION
 
 ENV TZ=Asia/Tokyo
 
@@ -60,7 +57,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	command-not-found \
 	curl \
 	git \
-	gpg-agent \
+	gnupg \
 	htop \
 	iproute2 \
 	iputils-arping \
@@ -79,6 +76,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	pkg-config \
 	pv \
 	rsync \
+	socat \
 	software-properties-common \
 	sudo \
 	tcpdump \
@@ -135,14 +133,35 @@ RUN echo "**** Install asdf ****" && \
 
 USER ${DEFAULT_USERNAME}
 RUN <<EOF
-echo "**** add 'asdf' to ~/.bashrc ****"
+echo "**** add '~/.bashrc.d/*.sh' to ~/.bashrc ****"
 set -euxo pipefail
 
 cat <<- _DOC_ >> ~/.bashrc
 
-#asdf command
-export PATH="\${ASDF_DATA_DIR:-$HOME/.asdf}/shims:\$PATH"
+# Include ~/.bashrc.d/
+if [ -d ~/.bashrc.d ]; then
+	for f in ~/.bashrc.d/*.sh; do
+		[ -r "\$f" ] && source "\$f"
+	done
+fi
+
+_DOC_
+EOF
+
+RUN <<EOF
+echo "**** add 'asdf' to ~/.bashrc.d/10-asdf.sh ****"
+set -euxo pipefail
+
+mkdir -p ~/.bashrc.d/
+cat <<- _DOC_ > ~/.bashrc.d/10-asdf.sh
+#!/usr/bin/env bash
+
+# asdf command
+export PATH="\${ASDF_DATA_DIR:-\$HOME/.asdf}/shims:\$PATH"
 . <(asdf completion bash)
+
+# asdf rust command
+export PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin
 
 _DOC_
 EOF
@@ -162,24 +181,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	unzip "${_filename}" -d /usr/local/bin/ && \
 	type -p dprint && \
 	rm -rf "./${_filename}"
-
-RUN echo "**** Install wsl2-ssh-agent ****" && \
-	set -euxo pipefail && \
-	__TEMPDIR=$(mktemp -d) && \
-	cd ${__TEMPDIR} && \
-	if [ -z "${WSL2SSHAGENT_VERSION}" ]; then echo "WSL2SSHAGENT_VERSION is blank"; else echo "WSL2SSHAGENT_VERSION is set to '$WSL2SSHAGENT_VERSION'"; fi && \
-	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
-	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
-	jq -r '.assets[] | select(.name | endswith("wsl2-ssh-agent")) | .browser_download_url')" && \
-	curl ${CURL_OPTS} -O "$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
-	https://api.github.com/repos/mame/wsl2-ssh-agent/releases/tags/${WSL2SSHAGENT_VERSION} | \
-	jq -r '.assets[] | select(.name | endswith("checksums.txt")) | .browser_download_url')" && \
-	grep -E '\swsl2-ssh-agent$' checksums.txt | sha256sum --status -c - && \
-	\
-	cp -av wsl2-ssh-agent /usr/local/bin/wsl2-ssh-agent && \
-	chmod +x /usr/local/bin/wsl2-ssh-agent && \
-	type -p wsl2-ssh-agent && \
-	rm -rf ${__TEMPDIR}
 
 RUN echo "**** Install git-secrets ****" && \
 	set -euxo pipefail && \
@@ -202,10 +203,6 @@ ARG DEBIAN_FRONTEND \
 	DEFAULT_USERNAME
 
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 .tool-versions /home/${DEFAULT_USERNAME}/.tool-versions
-
-RUN echo "**** asdf install plugin asdf-assh ****" && \
-	set -euxo pipefail && \
-	asdf plugin add assh
 
 RUN echo "**** asdf install plugin awscli ****" && \
 	set -euxo pipefail && \
@@ -277,7 +274,10 @@ RUN echo "**** asdf install plugin aws-sam-cli ****" && \
 
 RUN echo "**** asdf install python ****" && \
 	set -euxo pipefail && \
-	asdf install python && \
+	asdf install python
+
+RUN echo "**** asdf install other deps ****" && \
+	set -euxo pipefail && \
 	asdf install
 
 RUN echo "**** asdf check ****" && \
@@ -310,17 +310,6 @@ done
 
 EOF
 
-RUN <<EOF
-echo "**** rust tools path append ****"
-set -euxo pipefail && \
-
-cat <<- _DOC_ >> ~/.bashrc
-#asdf rust command
-export PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin
-
-_DOC_
-EOF
-
 RUN echo "**** rust tools path check ****" && \
 	set -euxo pipefail && \
 	source ~/.bashrc && \
@@ -328,45 +317,70 @@ RUN echo "**** rust tools path check ****" && \
 	type -p rg && \
 	type -p topgrade
 
-
-#
 RUN <<EOF
-echo "**** Add restore dump and '.gitconfig' to ~/.bashrc ****"
+echo "**** Add ~/.bashrc.d/05-path.sh ****"
 set -euxo pipefail
 
-cat <<- _DOC_ >> ~/.bashrc
+mkdir -p $HOME/.local/bin
+cat <<- _DOC_ > ~/.bashrc.d/05-path.sh
+#!/usr/bin/env bash
+
+# Add PATH .loca./bin
+case ":\$PATH:" in
+	*":\$HOME/.local/bin:"*) ;;
+	*) export PATH="\$HOME/.local/bin:\$PATH" ;;
+esac
+
+_DOC_
+EOF
+
+RUN <<EOF
+echo "**** Add ~/.bashrc.d/11-devtool-wsl2.sh ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > ~/.bashrc.d/11-devtool-wsl2.sh
+#!/usr/bin/env bash
 
 # Restore dump
-if [ ! -f "\${HOME}/.devtool-wsl2.lock" ]; then
-	__WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
-	__LAST_DUMP="\$(ls -t "\${__WSL2_DIR}/Backups/" | head -n1)"
-
-	if [ -n "\${__LAST_DUMP}" ]; then
-		echo "# =============================================================================="
-		echo "# devtool-wsl2 restore tools"
-		echo "#"
-		echo "# WSL2 Directory: \"\${__WSL2_DIR}\""
-		echo "# Last Dump     : \"\${__LAST_DUMP}\""
-		echo "# =============================================================================="
-
-		pv "\${__WSL2_DIR}/Backups/\${__LAST_DUMP}" | tar xf - -C "\${HOME}" --strip-components=2
-		date '+%Y-%m-%dT%H%M%S%z' > "\${HOME}/.devtool-wsl2.lock"
-		echo "Restore completed: \${__LAST_DUMP}"
-	fi
+if [ ! -f "\${HOME}/.dwsl2-restore.lock" ]; then
+	/opt/devtool/bin/restore.sh
 fi
+
+# Setup
+if [ ! -f "\${HOME}/.cache/devtool-setup.lock" ]; then
+	/opt/devtool/bin/setup.sh
+fi
+
+_DOC_
+EOF
+
+RUN <<EOF
+echo "**** Add ~/.bashrc.d/31-gitconfig-copy.sh ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > ~/.bashrc.d/31-gitconfig-copy.sh
+#!/usr/bin/env bash
+
+# Logger
+log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
+
+#Env
+USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
 # Copy "~/.gitconfig" from Windows if it doesn't exist
-if [ ! -f "\${HOME}/.gitconfig" ]; then
-	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
-
-	echo "Copy .gitconfig from Windows"
-	cp -v "\${__USERPROFILE}/.gitconfig" ~/
+if [ ! -f "\${HOME}/.gitconfig" -a -f "\${USERPROFILE}/.gitconfig" ]; then
+	log_info "Copy .gitconfig from Windows"
+	cp -v "\${USERPROFILE}/.gitconfig" ~/
 fi
-if [ ! -f "\${HOME}/.gitignore_global" ]; then
-	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
-
-	echo "Copy .gitignore_global from Windows"
-	cp -v "\${__USERPROFILE}/.gitignore_global" ~/
+if [ ! -d "\${HOME}/.gitconfig.d" -a -d "\${USERPROFILE}/.gitconfig.d" ]; then
+	log_info "Copy .gitconfig.d from Windows"
+	cp -Rv "\${USERPROFILE}/.gitconfig.d" ~/
+fi
+if [ ! -f "\${HOME}/.gitignore_global" -a -d "\${USERPROFILE}/.gitignore_global" ]; then
+	log_info "Copy .gitignore_global from Windows"
+	cp -v "\${USERPROFILE}/.gitignore_global" ~/
 fi
 
 _DOC_
@@ -374,78 +388,19 @@ EOF
 
 USER root
 RUN <<EOF
-echo "**** Add 'backup.sh' to /usr/local/bin ****"
+echo "**** systemctl mask gpg-agent* ****"
 set -euxo pipefail
 
-cat <<- _DOC_ >> /usr/local/bin/backup.sh
-#!/usr/bin/env bash
-set -eu
-
-WSL2_DIR="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))/Documents/WSL2"
-FILENAME_DUMP="\$(date '+%Y-%m-%dT%H%M%S')_devtool-wsl2.tar"
-EXCLUDE_DIRS=(
-	".asdf"
-	".cache"
-	".docker"
-	".dotnet"
-	".local"
-	".vscode-remote-containers"
-	".vscode-server"
-)
-
-EXCLUDE_ARGS=()
-for dir in "\${EXCLUDE_DIRS[@]}"; do
-	EXCLUDE_ARGS+=("--exclude=\${dir}")
-done
-
-cat <<__EOF__> /dev/stdout
-# ==============================================================================
-# devtool-wsl2 backup tools
-#
-# WSL2 Directory: "\${WSL2_DIR}"
-# Filename      : "\${FILENAME_DUMP}"
-# Excludes      : "\${EXCLUDE_ARGS[@]}"
-# ==============================================================================
-
-__EOF__
-
-echo "Calculating directory size..."
-TOTAL_SIZE=\$(du -sb "\${HOME}" \
-	"\${EXCLUDE_ARGS[@]}" \
-	2>/dev/null | cut -f1)
-
-echo "Starting backup: \$(numfmt --to=iec \${TOTAL_SIZE}) to compress"
-tar -c \
-	"\${EXCLUDE_ARGS[@]}" \
-	"\${HOME}" | pv -p -t -e -r -a -s "\${TOTAL_SIZE}" > "/tmp/\${FILENAME_DUMP}"
-
-mkdir -p "\${WSL2_DIR}/Backups"
-rsync -avP "/tmp/\${FILENAME_DUMP}" "\${WSL2_DIR}/Backups"
-echo "Backup completed: \${WSL2_DIR}/Backups/\${FILENAME_DUMP}"
-
-_DOC_
-
-chmod +x /usr/local/bin/backup.sh
+mkdir -p /etc/systemd/user
+ln -sf /dev/null /etc/systemd/user/gpg-agent.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent-browser.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent-extra.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent-ssh.socket
+ln -sf /dev/null /etc/systemd/user/gpg-agent.service
 
 EOF
-USER ${DEFAULT_USERNAME}
 
-# wsl2-ssh-agent Config
-RUN <<EOF
-echo "**** Add 'wsl2-ssh-agent config' to ~/.bashrc ****"
-set -euxo pipefail
-
-cat <<- _DOC_ >> ~/.bashrc
-
-# Bash configuration for wsl2-ssh-agent
-eval \$(/usr/local/bin/wsl2-ssh-agent)
-
-_DOC_
-
-mkdir -p ~/.ssh
-chmod 0700 ~/.ssh
-
-EOF
+COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts		/opt/devtool
 
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root
