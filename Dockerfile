@@ -362,28 +362,25 @@ cat <<- _DOC_ > ~/.bashrc.d/31-gitconfig-copy.sh
 #!/usr/bin/env bash
 
 # Logger
-log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
-log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
-log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
+log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
+
+#Env
+USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
 
 # Copy "~/.gitconfig" from Windows if it doesn't exist
-if [ ! -f "\${HOME}/.gitconfig" ]; then
-	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
-
+if [ ! -f "\${HOME}/.gitconfig" -a -f "\${USERPROFILE}/.gitconfig" ]; then
 	log_info "Copy .gitconfig from Windows"
-	cp -v "\${__USERPROFILE}/.gitconfig" ~/
+	cp -v "\${USERPROFILE}/.gitconfig" ~/
 fi
-if [ ! -f "\${HOME}/.gitconfig.d" ]; then
-	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
-
+if [ ! -d "\${HOME}/.gitconfig.d" -a -d "\${USERPROFILE}/.gitconfig.d" ]; then
 	log_info "Copy .gitconfig.d from Windows"
-	cp -Rv "\${__USERPROFILE}/.gitconfig.d" ~/
+	cp -Rv "\${USERPROFILE}/.gitconfig.d" ~/
 fi
-if [ ! -f "\${HOME}/.gitignore_global" ]; then
-	__USERPROFILE="\$(wslpath -u \$(powershell.exe -c '\$env:USERPROFILE' | tr -d '\r'))"
-
+if [ ! -f "\${HOME}/.gitignore_global" -a -d "\${USERPROFILE}/.gitignore_global" ]; then
 	log_info "Copy .gitignore_global from Windows"
-	cp -v "\${__USERPROFILE}/.gitignore_global" ~/
+	cp -v "\${USERPROFILE}/.gitignore_global" ~/
 fi
 
 _DOC_
