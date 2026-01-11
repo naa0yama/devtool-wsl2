@@ -354,16 +354,17 @@ install_shell_config_wsl2() {
 	cat > "${bashrc_d}/21-ssh-agent.sh" << 'EOF'
 #!/usr/bin/env bash
 
-# Colors
-__CLR_WARN='\033[0;33m'   # Yellow
-__CLR_RESET='\033[0m'
+# Logger
+log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
 
 # SSH agent
 export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ssh/agent.sock"
 if ! systemctl --user is-active --quiet ssh-agent.socket; then
-    echo -e "${__CLR_WARN}[WARN]${__CLR_RESET} ssh-agent.socket is not running"
-    echo "       Check with: journalctl --user -u ssh-agent.socket"
-    echo "       Start with: systemctl --user start ssh-agent.socket"
+    log_warn "ssh-agent.socket is not running"
+    log_info "       Check with: journalctl --user -u ssh-agent.socket"
+    log_info "       Start with: systemctl --user start ssh-agent.socket"
 fi
 EOF
 	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
@@ -372,15 +373,16 @@ EOF
 	cat > "${bashrc_d}/22-gpg-agent.sh" << 'EOF'
 #!/usr/bin/env bash
 
-# Colors
-__CLR_WARN='\033[0;33m'   # Yellow
-__CLR_RESET='\033[0m'
+# Logger
+log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
 
 # GPG agent
 if ! systemctl --user is-active --quiet gpg-agent.socket; then
-    echo -e "${__CLR_WARN}[WARN]${__CLR_RESET} gpg-agent.socket is not running"
-    echo "       Check with: journalctl --user -u gpg-agent.socket"
-    echo "       Start with: systemctl --user start gpg-agent.socket"
+    log_warn "gpg-agent.socket is not running"
+    log_info "       Check with: journalctl --user -u gpg-agent.socket"
+    log_info "       Start with: systemctl --user start gpg-agent.socket"
 fi
 EOF
 	log_info "Created: ${bashrc_d}/22-gpg-agent.sh"
@@ -398,15 +400,16 @@ install_shell_config_remote() {
 	cat > "${bashrc_d}/22-gpg-agent.sh" << 'EOF'
 #!/usr/bin/env bash
 
-# Colors
-__CLR_WARN='\033[0;33m'   # Yellow
-__CLR_RESET='\033[0m'
+# Logger
+log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
 
 # GPG agent socket (created by SSH RemoteForward)
 __GPG_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnupg/S.gpg-agent"
 if [ ! -S "${__GPG_SOCK}" ]; then
-    echo -e "${__CLR_WARN}[WARN]${__CLR_RESET} GPG agent socket not found: ${__GPG_SOCK}"
-    echo "       Ensure SSH RemoteForward is configured on your Windows host"
+    log_warn "GPG agent socket not found: ${__GPG_SOCK}"
+    log_info "       Ensure SSH RemoteForward is configured on your Windows host"
 fi
 unset __GPG_SOCK
 EOF
