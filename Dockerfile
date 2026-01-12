@@ -416,7 +416,7 @@ cat <<- _DOC_ > /etc/wsl.conf
 enabled=true
 mountFsTab=true
 root="/mnt/"
-options="metadata,uid=${DEFAULT_UID},gid=${DEFAULT_GID},umask=0022"
+options="metadata,uid=${DEFAULT_UID},gid=${DEFAULT_GID},umask=0022,fmask=0133"
 
 [user]
 default=${DEFAULT_USERNAME}
