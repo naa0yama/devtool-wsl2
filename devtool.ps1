@@ -343,8 +343,9 @@ function Import-WSL {
 
 			if ($defaultDistro) {
 				Write-Log "Current default WSL distribution: $defaultDistro"
-				Write-Log "Running backup script on $defaultDistro..."
-				wsl -d $defaultDistro bash /opt/devtool/bin/backup.sh
+				Write-Log "Fetching and running latest backup script from main branch on $defaultDistro..."
+				$backupScriptUrl = "https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main/scripts/bin/backup.sh"
+				wsl -d $defaultDistro bash -c "curl -fsSL '$backupScriptUrl' | bash"
 				Write-Log "Backup script executed successfully on $defaultDistro."
 			} else {
 				Write-Log "No default WSL distribution found." -ForegroundColor Yellow
