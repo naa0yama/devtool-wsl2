@@ -276,6 +276,7 @@ Documentation=man:gpg-agent(1)
 
 [Socket]
 ListenStream=%t/gnupg/S.gpg-agent
+ListenStream=%t/gnupg/S.gpg-agent.extra
 SocketMode=0600
 DirectoryMode=0700
 Accept=true
@@ -321,6 +322,7 @@ install_systemd_units_remote() {
 
 	# gpg-socket-cleanup.service
 	# Removes stale GPG socket on login so SSH RemoteForward can create it
+	# Also creates extra socket symlink for devcontainer GPG forwarding
 	cat > "${systemd_dst}/gpg-socket-cleanup.service" << 'EOF'
 [Unit]
 Description=Clean up GPG agent socket for SSH RemoteForward
@@ -331,7 +333,9 @@ Before=default.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/rm -f %t/gnupg/S.gpg-agent
+ExecStart=/bin/rm -f %t/gnupg/S.gpg-agent %t/gnupg/S.gpg-agent.extra
+ExecStart=/bin/mkdir -p %t/gnupg
+ExecStart=/bin/ln -sf S.gpg-agent %t/gnupg/S.gpg-agent.extra
 RemainAfterExit=no
 
 [Install]
@@ -355,17 +359,37 @@ install_shell_config_wsl2() {
 #!/usr/bin/env bash
 
 # Logger
-log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
-log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
-log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
+log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
+
+# Wait for systemd user session to be ready (max 5 seconds)
+# This handles WSL startup race condition where bash starts before D-Bus is ready
+__wait_systemd_user() {
+    local i
+    for i in 1 2 3 4 5; do
+        if systemctl --user is-system-running &>/dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
 
 # SSH agent
 export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ssh/agent.sock"
-if ! systemctl --user is-active --quiet ssh-agent.socket; then
+
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    log_warn "XDG_RUNTIME_DIR not set, systemd user session not available"
+elif ! __wait_systemd_user; then
+    log_warn "systemd user session not ready (timed out)"
+elif ! systemctl --user is-active --quiet ssh-agent.socket; then
     log_warn "ssh-agent.socket is not running"
     log_info "       Check with: journalctl --user -u ssh-agent.socket"
     log_info "       Start with: systemctl --user start ssh-agent.socket"
 fi
+
+unset -f __wait_systemd_user
 EOF
 	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
 
@@ -374,15 +398,18 @@ EOF
 #!/usr/bin/env bash
 
 # Logger
-log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
-log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
-log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
+log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
 # GPG agent
-if ! systemctl --user is-active --quiet gpg-agent.socket; then
-    log_warn "gpg-agent.socket is not running"
-    log_info "       Check with: journalctl --user -u gpg-agent.socket"
-    log_info "       Start with: systemctl --user start gpg-agent.socket"
+# Note: 21-ssh-agent.sh already waits for systemd user session
+if systemctl --user is-system-running &>/dev/null; then
+    if ! systemctl --user is-active --quiet gpg-agent.socket; then
+        log_warn "gpg-agent.socket is not running"
+        log_info "       Check with: journalctl --user -u gpg-agent.socket"
+        log_info "       Start with: systemctl --user start gpg-agent.socket"
+    fi
 fi
 EOF
 	log_info "Created: ${bashrc_d}/22-gpg-agent.sh"
@@ -401,9 +428,9 @@ install_shell_config_remote() {
 #!/usr/bin/env bash
 
 # Logger
-log_info() { echo -e "\033[0;36m[INFO]\033[0m \$*"; }
-log_warn() { echo -e "\033[0;33m[WARN]\033[0m \$*" >&2; }
-log_erro() { echo -e "\033[0;31m[ERRO]\033[0m \$*" >&2; }
+log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
+log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
 # GPG agent socket (created by SSH RemoteForward)
 __GPG_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnupg/S.gpg-agent"

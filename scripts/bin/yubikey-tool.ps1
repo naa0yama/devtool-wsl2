@@ -17,9 +17,11 @@
 	- Touch: Touch required (imageres.dll index 300)
 	- NoCard: YubiKey not detected (imageres.dll index 54)
 	- Error: Connection error, auto-restart (imageres.dll index 270)
+	- Stopped: Agents stopped (imageres.dll index 93)
 
 	System tray menu:
 	- Restart Agents: Restart gpg-agent and gpg-bridge
+	- Stop Agents: Stop gpg-agent and gpg-bridge
 	- Show Log: Open log file in Notepad
 	- Exit: Stop the tool
 
@@ -126,6 +128,7 @@ $script:IconNormal = $null    # Padlock (normal state)
 $script:IconTouch = $null     # Key (touch required)
 $script:IconNoCard = $null    # Warning (no card)
 $script:IconError = $null     # Error (connection error)
+$script:IconStopped = $null   # Stopped (agents stopped)
 
 #region Configuration
 
@@ -311,6 +314,7 @@ function Initialize-TrayIcon {
 	$script:IconTouch = Get-IconFromDll -DllPath $imageresPath -Index 300 -Name "Touch"
 	$script:IconNoCard = Get-IconFromDll -DllPath $imageresPath -Index 54 -Name "NoCard"
 	$script:IconError = Get-IconFromDll -DllPath $imageresPath -Index 270 -Name "Error"
+	$script:IconStopped = Get-IconFromDll -DllPath $imageresPath -Index 93 -Name "Stopped"
 
 	# Set initial icon (normal state)
 	if ($script:IconNormal) {
@@ -336,9 +340,21 @@ function Initialize-TrayIcon {
 	$menuRestart.Add_Click({
 		Write-Log "Restarting agents from tray menu..."
 		Restart-Agents | Out-Null
+		Set-TrayIconState -State "Normal"
 		$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents restarted", [System.Windows.Forms.ToolTipIcon]::Info)
 	})
 	$contextMenu.Items.Add($menuRestart) | Out-Null
+
+	# Menu item: Stop Agents
+	$menuStop = New-Object System.Windows.Forms.ToolStripMenuItem
+	$menuStop.Text = "Stop Agents"
+	$menuStop.Add_Click({
+		Write-Log "Stopping agents from tray menu..."
+		Stop-Agents
+		Set-TrayIconState -State "Stopped"
+		$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents stopped", [System.Windows.Forms.ToolTipIcon]::Info)
+	})
+	$contextMenu.Items.Add($menuStop) | Out-Null
 
 	# Menu item: Show Log
 	$menuShowLog = New-Object System.Windows.Forms.ToolStripMenuItem
@@ -362,9 +378,10 @@ function Initialize-TrayIcon {
 	$menuExit.Text = "Exit"
 	$menuExit.Add_Click({
 		Write-Log "Exiting from tray menu..."
+		Stop-Agents
 		$script:TrayIcon.Visible = $false
 		$script:TrayIcon.Dispose()
-		[System.Windows.Forms.Application]::Exit()
+		[Environment]::Exit(0)
 	})
 	$contextMenu.Items.Add($menuExit) | Out-Null
 
@@ -390,7 +407,8 @@ function Remove-TrayIcon {
 		[ref]$script:IconNormal,
 		[ref]$script:IconTouch,
 		[ref]$script:IconNoCard,
-		[ref]$script:IconError
+		[ref]$script:IconError,
+		[ref]$script:IconStopped
 	)) {
 		if ($iconRef.Value) {
 			$iconRef.Value.Dispose()
@@ -406,11 +424,11 @@ function Set-TrayIconState {
 	.SYNOPSIS
 		Change tray icon based on state
 	.PARAMETER State
-		Icon state: "Normal", "Touch", "NoCard", "Error"
+		Icon state: "Normal", "Touch", "NoCard", "Error", "Stopped"
 	#>
 	param(
 		[Parameter(Mandatory)]
-		[ValidateSet("Normal", "Touch", "NoCard", "Error")]
+		[ValidateSet("Normal", "Touch", "NoCard", "Error", "Stopped")]
 		[string]$State
 	)
 
@@ -433,6 +451,12 @@ function Set-TrayIconState {
 			if ($script:IconError) {
 				$script:TrayIcon.Icon = $script:IconError
 				$script:TrayIcon.Text = "YubiKey Tool - Error (Restarting...)"
+			}
+		}
+		"Stopped" {
+			if ($script:IconStopped) {
+				$script:TrayIcon.Icon = $script:IconStopped
+				$script:TrayIcon.Text = "YubiKey Tool - Agents Stopped"
 			}
 		}
 		default {
