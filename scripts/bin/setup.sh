@@ -276,6 +276,7 @@ Documentation=man:gpg-agent(1)
 
 [Socket]
 ListenStream=%t/gnupg/S.gpg-agent
+ListenStream=%t/gnupg/S.gpg-agent.extra
 SocketMode=0600
 DirectoryMode=0700
 Accept=true
@@ -321,6 +322,7 @@ install_systemd_units_remote() {
 
 	# gpg-socket-cleanup.service
 	# Removes stale GPG socket on login so SSH RemoteForward can create it
+	# Also creates extra socket symlink for devcontainer GPG forwarding
 	cat > "${systemd_dst}/gpg-socket-cleanup.service" << 'EOF'
 [Unit]
 Description=Clean up GPG agent socket for SSH RemoteForward
@@ -331,7 +333,9 @@ Before=default.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/rm -f %t/gnupg/S.gpg-agent
+ExecStart=/bin/rm -f %t/gnupg/S.gpg-agent %t/gnupg/S.gpg-agent.extra
+ExecStart=/bin/mkdir -p %t/gnupg
+ExecStart=/bin/ln -sf S.gpg-agent %t/gnupg/S.gpg-agent.extra
 RemainAfterExit=no
 
 [Install]
