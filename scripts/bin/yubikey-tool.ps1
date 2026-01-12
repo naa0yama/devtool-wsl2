@@ -378,9 +378,10 @@ function Initialize-TrayIcon {
 	$menuExit.Text = "Exit"
 	$menuExit.Add_Click({
 		Write-Log "Exiting from tray menu..."
+		Stop-Agents
 		$script:TrayIcon.Visible = $false
 		$script:TrayIcon.Dispose()
-		[System.Windows.Forms.Application]::Exit()
+		[Environment]::Exit(0)
 	})
 	$contextMenu.Items.Add($menuExit) | Out-Null
 
