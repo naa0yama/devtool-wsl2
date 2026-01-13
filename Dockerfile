@@ -133,14 +133,14 @@ RUN echo "**** Install asdf ****" && \
 
 USER ${DEFAULT_USERNAME}
 RUN <<EOF
-echo "**** add '~/.bashrc.d/*.sh' to ~/.bashrc ****"
+echo "**** add '~/.bashrc.d/devtool/*.sh' to ~/.bashrc ****"
 set -euxo pipefail
 
 cat <<- _DOC_ >> ~/.bashrc
 
-# Include ~/.bashrc.d/
-if [ -d ~/.bashrc.d ]; then
-	for f in ~/.bashrc.d/*.sh; do
+# Include ~/.bashrc.d/devtool/
+if [ -d ~/.bashrc.d/devtool ]; then
+	for f in ~/.bashrc.d/devtool/*.sh; do
 		[ -r "\$f" ] && source "\$f"
 	done
 fi
@@ -149,11 +149,11 @@ _DOC_
 EOF
 
 RUN <<EOF
-echo "**** add 'asdf' to ~/.bashrc.d/10-asdf.sh ****"
+echo "**** add 'asdf' to ~/.bashrc.d/devtool/10-asdf.sh ****"
 set -euxo pipefail
 
-mkdir -p ~/.bashrc.d/
-cat <<- _DOC_ > ~/.bashrc.d/10-asdf.sh
+mkdir -p ~/.bashrc.d/devtool
+cat <<- _DOC_ > ~/.bashrc.d/devtool/10-asdf.sh
 #!/usr/bin/env bash
 
 # asdf command
@@ -318,11 +318,11 @@ RUN echo "**** rust tools path check ****" && \
 	type -p topgrade
 
 RUN <<EOF
-echo "**** Add ~/.bashrc.d/05-path.sh ****"
+echo "**** Add ~/.bashrc.d/devtool/05-path.sh ****"
 set -euxo pipefail
 
 mkdir -p $HOME/.local/bin
-cat <<- _DOC_ > ~/.bashrc.d/05-path.sh
+cat <<- _DOC_ > ~/.bashrc.d/devtool/05-path.sh
 #!/usr/bin/env bash
 
 # Add PATH .loca./bin
@@ -335,10 +335,10 @@ _DOC_
 EOF
 
 RUN <<EOF
-echo "**** Add ~/.bashrc.d/11-devtool-wsl2.sh ****"
+echo "**** Add ~/.bashrc.d/devtool/11-devtool-wsl2.sh ****"
 set -euxo pipefail
 
-cat <<- _DOC_ > ~/.bashrc.d/11-devtool-wsl2.sh
+cat <<- _DOC_ > ~/.bashrc.d/devtool/11-devtool-wsl2.sh
 #!/usr/bin/env bash
 
 # Restore dump
@@ -355,10 +355,10 @@ _DOC_
 EOF
 
 RUN <<EOF
-echo "**** Add ~/.bashrc.d/31-gitconfig-copy.sh ****"
+echo "**** Add ~/.bashrc.d/devtool/31-gitconfig-copy.sh ****"
 set -euxo pipefail
 
-cat <<- _DOC_ > ~/.bashrc.d/31-gitconfig-copy.sh
+cat <<- _DOC_ > ~/.bashrc.d/devtool/31-gitconfig-copy.sh
 #!/usr/bin/env bash
 
 # Logger
