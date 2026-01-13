@@ -11,6 +11,7 @@ WSL2_DIR="$(wslpath -u "$(powershell.exe -c '$env:USERPROFILE' | tr -d '\r')")/D
 FILENAME_DUMP="$(date '+%Y-%m-%dT%H%M%S')_devtool-wsl2.tar"
 EXCLUDE_DIRS=(
 	".asdf"
+	".bashrc.d/devtool"
 	".cache"
 	".docker"
 	".dotnet"
