@@ -1,11 +1,13 @@
 [tools]
 "github:Byron/dua-cli" = "latest"
+"github:SuperCuber/dotter" = "latest"
 "github:topgrade-rs/topgrade" = "latest"
 aws-sam-cli = { version = "latest", symlink_bins = "true" }
 awscli = { version = "latest", symlink_bins = "true" }
 dprint = "latest"
 fzf = "latest"
 ghq = "latest"
+lefthook = "latest"
 ripgrep = "latest"
 rust = "latest"
 starship = "latest"
