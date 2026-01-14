@@ -8,41 +8,26 @@ WSL2 の開発環境を自動構築するセット\
 
 ## Software
 
-- CLI commands
-  - bash
-  - ca-certificates
-  - curl
-  - git
-  - man
-  - mtr
-  - nano
-  - sudo
-  - tcpdump
-  - traceroute
-  - unzip
-  - vim
-  - wget
-
 | Common software                                                 | Latest software version                                                 |
 | :-------------------------------------------------------------- | :---------------------------------------------------------------------- |
 | [albertony/npiperelay](https://github.com/albertony/npiperelay) | ![GitHub Tag](https://img.shields.io/github/v/tag/albertony/npiperelay) |
-| [asdf](https://github.com/asdf-vm/asdf)                         | ![GitHub Tag](https://img.shields.io/github/v/tag/asdf-vm/asdf)         |
 | [BusyJay/gpg-bridge](https://github.com/BusyJay/gpg-bridge)     | ![GitHub Tag](https://img.shields.io/github/v/tag/BusyJay/gpg-bridge)   |
-| [Docker Engine](https://github.com/moby/moby)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)            |
 | [dprint](https://github.com/dprint/dprint)                      | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)        |
+| [mise](https://github.com/jdx/mise)                             | ![GitHub Tag](https://img.shields.io/github/v/tag/jdx/mise)             |
+| [Podman](https://github.com/containers/podman)                  | ![GitHub Tag](https://img.shields.io/github/v/tag/containers/podman)    |
 
-| asdf Plugins                                        | asdf Plugin URL                                                                   | Latest software version                                                 |
-| :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------- |
-| [aws-cli](https://github.com/aws/aws-cli/)          | [MetricMike/asdf-awscli](https://github.com/MetricMike/asdf-awscli)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)          |
-| [fzf](https://github.com/junegunn/fzf)              | [asdf-fzf](https://github.com/kompiro/asdf-fzf)                                   | ![GitHub Tag](https://img.shields.io/github/v/tag/junegunn/fzf)         |
-| [ghq](https://github.com/x-motemen/ghq)             | [kajisha/asdf-ghq](https://github.com/kajisha/asdf-ghq)                           | ![GitHub Tag](https://img.shields.io/github/v/tag/x-motemen/ghq)        |
-| [poetry](https://github.com/python-poetry/poetry)   | [asdf-community/asdf-poetry](https://github.com/asdf-community/asdf-poetry)       | ![GitHub Tag](https://img.shields.io/github/v/tag/python-poetry/poetry) |
-| [python](https://github.com/python/cpython)         | [danhper/asdf-python](https://github.com/danhper/asdf-python)                     | ![GitHub Tag](https://img.shields.io/github/v/tag/python/cpython)       |
-| [rust](https://github.com/rust-lang/rust)           | [code-lever/asdf-rust](https://github.com/code-lever/asdf-rust)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/rust-lang/rust)       |
-| [aws-sam-cli](https://github.com/aws/aws-sam-cli)   | [amrox/asdf-pyapp](https://github.com/amrox/asdf-pyapp)                           | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-sam-cli)      |
-| [starship](https://github.com/starship/starship)    | [gr1m0h/asdf-starship](https://github.com/gr1m0h/asdf-starship)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/starship/starship)    |
-| [Terraform](https://github.com/hashicorp/terraform) | [asdf-community/asdf-hashicorp](https://github.com/asdf-community/asdf-hashicorp) | ![GitHub Tag](https://img.shields.io/github/v/tag/hashicorp/terraform)  |
-| [Tmux](https://github.com/tmux/tmux)                | [aphecetche/asdf-tmux](https://github.com/aphecetche/asdf-tmux)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/tmux/tmux)            |
+| mise                                                 |
+| :--------------------------------------------------- |
+| [aws-cli](https://github.com/aws/aws-cli/)           |
+| [aws-sam-cli](https://github.com/aws/aws-sam-cli)    |
+| [claude-code](https://code.claude.com/docs/en/setup) |
+| [fzf](https://github.com/junegunn/fzf)               |
+| [ghq](https://github.com/x-motemen/ghq)              |
+| [lefthook](https://github.com/evilmartians/lefthook) |
+| [poetry](https://github.com/python-poetry/poetry)    |
+| [rust](https://github.com/rust-lang/rust)            |
+| [starship](https://github.com/starship/starship)     |
+| [Tmux](https://github.com/tmux/tmux)                 |
 
 | Rust Tools                                          | Latest release                                                          |
 | :-------------------------------------------------- | :---------------------------------------------------------------------- |
@@ -61,7 +46,8 @@ WSL2 の開発環境を自動構築するセット\
 `Windows Terminal` などで PowerShell を開き下記のコマンドを投入すると最新の GitHub Releases から WSL2 イメージを取得し WSL に登録します
 
 ```powershell
-powershell -ExecutionPolicy Unrestricted -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main/devtool.ps1' -OutFile 'devtool.ps1'; .\devtool.ps1"
+Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main/devtool.ps1' -OutFile "$env:TEMP/devtool.ps1"
+powershell -ExecutionPolicy Unrestricted "$env:TEMP/devtool.ps1"
 ```
 
 フラグオプションをいくつか用意しています
@@ -113,23 +99,6 @@ wsl -l -v
 ```powershelll
 wsl -d dwsl2-8718ff1
 user@dead-desk1:~$
-```
-
-asdf が使えるか確認しておきましょう。\
-`asdf current` で確認出来ます。
-
-```powershelll
-> asdf current
-aws-sam-cli     1.115.0         /home/user/.tool-versions
-awscli          2.15.19         /home/user/.tool-versions
-fzf             0.50.0          /home/user/.tool-versions
-ghq             1.6.1           /home/user/.tool-versions
-poetry          1.7.1           /home/user/.tool-versions
-python          3.10.12         /home/user/.tool-versions
-rust            stable          /home/user/.tool-versions
-starship        1.18.2          /home/user/.tool-versions
-terraform       1.1.3           /home/user/.tool-versions
-tmux            3.4             /home/user/.tool-versions
 ```
 
 ### デフォルトに設定する場合
