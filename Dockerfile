@@ -23,7 +23,13 @@ ARG CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
 #- -----------------------------------------------------------------------------
 FROM ubuntu:24.04@sha256:66460d557b25769b102175144d538d88219c077c678a49af4afca6fbfc1b5252 AS base
 
-ARG CURL_OPTS \
+ARG BUILD_ACTION \
+	BUILD_BASE_REF \
+	BUILD_REPOSITORY \
+	BUILD_SHA \
+	\
+	CURL_OPTS \
+	DEBIAN_FRONTEND \
 	DEFAULT_UID=1100 \
 	DEFAULT_GID=1100 \
 	DEFAULT_USERNAME \
