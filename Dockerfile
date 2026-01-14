@@ -114,7 +114,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	set -euxo pipefail && \
 	apt-get -y install --no-install-recommends \
 	podman \
-	podman-docker
+	podman-compose \
+	podman-docker \
+	uidmap
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt,sharing=locked \
