@@ -7,7 +7,7 @@ ARG BUILD_ACTION="${BUILD_ACTION:-unknown}" \
 	BUILD_SHA="${BUILD_SHA:-unknown}" \
 	\
 	DEBIAN_FRONTEND=noninteractive \
-	DEFAULT_USERNAME=user \
+	DEFAULT_USERNAME=user
 
 ## renovate: datasource=github-releases packageName=asdf-vm/asdf versioning=semver automerge=true
 ARG ASDF_VERSION="v0.18.0"
@@ -130,54 +130,21 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	&& \
 	usermod -aG docker "${DEFAULT_USERNAME}"
 
-RUN echo "**** Install asdf ****" && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	\
+	echo "**** Install mise ****" && \
 	set -euxo pipefail && \
-	cd /tmp && \
-	if [ -z "${ASDF_VERSION}" ]; then echo "ASDF_VERSION is blank"; else echo "ASDF_VERSION is set to '$ASDF_VERSION'"; fi && \
-	curl ${CURL_OPTS} -o /tmp/asdf.tar.gz "$(curl -sfSL -H 'User-Agent: builder/1.0' \
-	https://api.github.com/repos/asdf-vm/asdf/releases/tags/${ASDF_VERSION} | \
-	jq -r '.assets[] | select(.name | endswith("linux-amd64.tar.gz")) | .browser_download_url')" && \
-	tar -xf /tmp/asdf.tar.gz && \
-	mv -v /tmp/asdf /usr/local/bin/asdf && \
-	type -p asdf && \
-	asdf version
-
-USER ${DEFAULT_USERNAME}
-RUN <<EOF
-echo "**** add '~/.bashrc.d/devtool/*.sh' to ~/.bashrc ****"
-set -euxo pipefail
-
-cat <<- _DOC_ >> ~/.bashrc
-
-# Include ~/.bashrc.d/devtool/
-if [ -d ~/.bashrc.d/devtool ]; then
-	for f in ~/.bashrc.d/devtool/*.sh; do
-		[ -r "\$f" ] && source "\$f"
-	done
-fi
-
-_DOC_
-EOF
-
-RUN <<EOF
-echo "**** add 'asdf' to ~/.bashrc.d/devtool/10-asdf.sh ****"
-set -euxo pipefail
-
-mkdir -p ~/.bashrc.d/devtool
-cat <<- _DOC_ > ~/.bashrc.d/devtool/10-asdf.sh
-#!/usr/bin/env bash
-
-# asdf command
-export PATH="\${ASDF_DATA_DIR:-\$HOME/.asdf}/shims:\$PATH"
-. <(asdf completion bash)
-
-# asdf rust command
-export PATH=\$PATH:\$HOME/.asdf/installs/rust/stable/bin
-
-_DOC_
-EOF
-
-USER root
+	install -dm 755 /etc/apt/keyrings && \
+	curl -fSs https://mise.jdx.dev/gpg-key.pub | \
+	tee /etc/apt/keyrings/mise-archive-keyring.pub 1> /dev/null && \
+	echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.pub arch=amd64] https://mise.jdx.dev/deb stable main" | \
+	tee /etc/apt/sources.list.d/mise.list && \
+	apt-get update && \
+	apt-get -y install --no-install-recommends \
+	mise \
+	&& \
+	type -p mise
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -213,126 +180,28 @@ FROM base AS user
 ARG DEBIAN_FRONTEND \
 	DEFAULT_USERNAME
 
-COPY --chown=${DEFAULT_USERNAME} --chmod=644 .tool-versions /home/${DEFAULT_USERNAME}/.tool-versions
-
-RUN echo "**** asdf install plugin awscli ****" && \
-	set -euxo pipefail && \
-	asdf plugin add awscli
-
-RUN echo "**** asdf install plugin fzf ****" && \
-	set -euxo pipefail && \
-	asdf plugin add fzf
-
-RUN echo "**** asdf install plugin ghq ****" && \
-	set -euxo pipefail && \
-	asdf plugin add ghq
-
-RUN echo "**** asdf install plugin terraform ****" && \
-	set -euxo pipefail && \
-	asdf plugin add terraform
-
-USER root
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-	--mount=type=cache,target=/var/lib/apt,sharing=locked \
-	\
-	echo "**** Dependencies Python ****" && \
-	set -euxo pipefail && \
-	apt-get update && \
-	apt-get install -y --no-install-recommends \
-	build-essential \
-	libbz2-dev \
-	libffi-dev \
-	liblzma-dev \
-	libncursesw5-dev \
-	libreadline-dev \
-	libsqlite3-dev \
-	libssl-dev \
-	libxml2-dev \
-	libxmlsec1-dev \
-	tk-dev \
-	xz-utils \
-	zlib1g-dev
-
 USER ${DEFAULT_USERNAME}
-RUN echo "**** asdf install plugin python ****" && \
-	set -euxo pipefail && \
-	asdf plugin add python
-
-RUN echo "**** asdf install plugin poetry ****" && \
-	set -euxo pipefail && \
-	asdf plugin add poetry
-
-RUN echo "**** asdf install plugin rust ****" && \
-	set -euxo pipefail && \
-	echo -e "// cli-tools\ndua-cli\nripgrep\ntopgrade\n" >  ~/.default-cargo-crates && \
-	echo    "// install from source"                     >> ~/.default-cargo-crates && \
-	echo    "// --git https://github.com/sharkdp/bat"    >> ~/.default-cargo-crates && \
-	echo    ""                                           >> ~/.default-cargo-crates && \
-	\
-	asdf plugin add rust
-
-RUN echo "**** asdf install plugin starship ****" && \
-	set -euxo pipefail && \
-	asdf plugin add starship
-
-RUN echo "**** asdf install plugin tmux ****" && \
-	set -euxo pipefail && \
-	asdf plugin add tmux
-
-RUN echo "**** asdf install plugin aws-sam-cli ****" && \
-	set -euxo pipefail && \
-	asdf plugin add aws-sam-cli
-
-RUN echo "**** asdf install python ****" && \
-	set -euxo pipefail && \
-	asdf install python
-
-RUN echo "**** asdf install other deps ****" && \
-	set -euxo pipefail && \
-	asdf install
-
-RUN echo "**** asdf check ****" && \
-	set -euxo pipefail && \
-	asdf current && \
-	asdf list
-
-ARG PATH="/home/${DEFAULT_USERNAME}/.asdf/shims:${PATH}"
 RUN <<EOF
-echo "**** asdf check ****"
-set -euxo pipefail && \
+echo "**** add '~/.bashrc.d/devtool/*.sh' to ~/.bashrc ****"
+set -euxo pipefail
 
-cat ~/.tool-versions | cut -d " " -f 1 | while read line
-do
-    case ${line} in
-    "aws-sam-cli")
-        type -p sam
-    ;;
-    "awscli")
-        type -p aws
-    ;;
-    "rust")
-        type -p cargo
-    ;;
-    *)
-        type -p ${line}
-    ;;
-    esac
-done
+cat <<- _DOC_ >> ~/.bashrc
 
+# Include ~/.bashrc.d/devtool/
+if [ -d ~/.bashrc.d/devtool ]; then
+	for f in ~/.bashrc.d/devtool/*.sh; do
+		[ -r "\$f" ] && source "\$f"
+	done
+fi
+
+_DOC_
 EOF
-
-RUN echo "**** rust tools path check ****" && \
-	set -euxo pipefail && \
-	source ~/.bashrc && \
-	type -p dua && \
-	type -p rg && \
-	type -p topgrade
 
 RUN <<EOF
 echo "**** Add ~/.bashrc.d/devtool/05-path.sh ****"
 set -euxo pipefail
 
-mkdir -p $HOME/.local/bin
+mkdir -p ~/.local/bin ~/.bashrc.d/devtool
 cat <<- _DOC_ > ~/.bashrc.d/devtool/05-path.sh
 #!/usr/bin/env bash
 
@@ -344,6 +213,25 @@ esac
 
 _DOC_
 EOF
+
+RUN <<EOF
+echo "**** Add ~/.bashrc.d/devtool/10-mise.sh ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > ~/.bashrc.d/devtool/10-mise.sh
+#!/usr/bin/env bash
+
+eval "\$(mise activate bash)"
+
+# This requires bash-completion to be installed
+if [ ! -f "~/.local/share/bash-completion/completions/mise" ]; then
+	mkdir -p ~/.local/share/bash-completion/completions/
+	mise completion bash --include-bash-completion-lib > ~/.local/share/bash-completion/completions/mise
+fi
+
+_DOC_
+EOF
+
 
 RUN <<EOF
 echo "**** Add ~/.bashrc.d/devtool/11-devtool-wsl2.sh ****"
@@ -404,6 +292,19 @@ fi
 _DOC_
 EOF
 
+RUN mkdir -p ~/.config/mise
+COPY --chown=${DEFAULT_USERNAME} --chmod=644 mise.toml /home/${DEFAULT_USERNAME}/.config/mise/config.toml
+RUN mise install && \
+	mise ls && \
+	exit 1
+
+RUN echo "**** rust tools path check ****" && \
+	set -euxo pipefail && \
+	source ~/.bashrc && \
+	type -p dua && \
+	type -p rg && \
+	type -p topgrade
+
 USER root
 RUN <<EOF
 echo "**** systemctl mask gpg-agent* ****"
@@ -455,5 +356,6 @@ systemd=true
 _DOC_
 EOF
 
+SHELL [ "/bin/bash", "-c" ]
 USER ${DEFAULT_USERNAME}
 WORKDIR /home/${DEFAULT_USERNAME}/

@@ -1,0 +1,15 @@
+[tools]
+aws-sam-cli = { version = "latest", symlink_bins = "true" }
+awscli = { version = "latest", symlink_bins = "true" }
+poetry = "2.2"
+usage = "latest"
+fzf = "latest"
+ghq = "latest"
+python = "3.14"
+rust = "latest"
+starship = "latest"
+terraform = "1.14"
+tmux = "3.6a"
+ripgrep = "latest"
+"github:topgrade-rs/topgrade" = "latest"
+"github:Byron/dua-cli" = "latest"

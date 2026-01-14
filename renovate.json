@@ -2,5 +2,55 @@
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": [
 		"local>naa0yama/renovate-config"
+	],
+	"packageRules": [
+		{
+			"description": "Custom managers (setup.sh) - Auto-merge disabled by default",
+			"matchManagers": [
+				"custom.regex"
+			],
+			"matchDepTypes": [
+				"setup.sh"
+			],
+			"automerge": false
+		},
+		{
+			"description": "Custom managers (setup.sh) - Auto-merge for automerge=true dependencies",
+			"matchManagers": [
+				"custom.regex"
+			],
+			"matchDepTypes": [
+				"setup.sh-automerge"
+			],
+			"matchUpdateTypes": [
+				"minor",
+				"patch"
+			],
+			"automerge": true
+		}
+	],
+	"customManagers": [
+		{
+			"description": "setup.sh dependencies with automerge=true",
+			"customType": "regex",
+			"managerFilePatterns": [
+				"/^scripts/bin/setup.sh$/"
+			],
+			"matchStrings": [
+				"## renovate: datasource=(?<datasource>\\S+)\\s+packageName=(?<packageName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+automerge=true\\s*\\nARG \\S+_VERSION=(?<currentValue>\\S+)"
+			],
+			"depTypeTemplate": "setup.sh-automerge"
+		},
+		{
+			"description": "setup.sh dependencies with automerge=false or unspecified",
+			"customType": "regex",
+			"managerFilePatterns": [
+				"/^scripts/bin/setup.sh$/"
+			],
+			"matchStrings": [
+				"## renovate: datasource=(?<datasource>\\S+)\\s+packageName=(?<packageName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+automerge=false)?\\s*\\nARG \\S+_VERSION=(?<currentValue>\\S+)"
+			],
+			"depTypeTemplate": "setup.sh"
+		}
 	]
 }
