@@ -110,25 +110,11 @@ RUN echo "**** Create user ****" && \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt,sharing=locked \
 	\
-	echo "**** Install Docker Engine ****" && \
+	echo "**** Install podman ****" && \
 	set -euxo pipefail && \
-	# Add Docker's official GPG key: \
-	install -m 0755 -d /etc/apt/keyrings && \
-	curl ${CURL_OPTS} https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && \
-	chmod a+r /etc/apt/keyrings/docker.asc && \
-	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-	https://download.docker.com/linux/ubuntu \
-	$(. /etc/os-release && echo "${VERSION_CODENAME}") stable" | \
-	tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-	apt-get -y update && \
 	apt-get -y install --no-install-recommends \
-	docker-ce \
-	docker-ce-cli \
-	containerd.io \
-	docker-buildx-plugin \
-	docker-compose-plugin \
-	&& \
-	usermod -aG docker "${DEFAULT_USERNAME}"
+	podman \
+	podman-docker
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -164,8 +150,8 @@ set -euxo pipefail
 
 cat <<- _DOC_ >> ~/.bashrc
 
-# Include ~/.bashrc.d/devtool/
-if [ -d ~/.bashrc.d/devtool ]; then
+# Include ~/.bashrc.d/devtool/ when using login shell
+if shopt -q login_shell && [ -d ~/.bashrc.d/devtool ]; then
 	for f in ~/.bashrc.d/devtool/*.sh; do
 		[ -r "\$f" ] && source "\$f"
 	done
