@@ -116,6 +116,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	podman \
 	podman-compose \
 	podman-docker \
+	slirp4netns \
 	uidmap
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
