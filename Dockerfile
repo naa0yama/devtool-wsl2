@@ -418,11 +418,11 @@ echo "**** Add /etc/devtool-release ****"
 set -euxo pipefail
 
 cat <<- _DOC_ > /etc/devtool-release
-BUILD_REPOSITORY="${{ github.server_url }}/${{ github.repository }}"
-BUILD_BASE_REF="${{ github.base_ref || github.ref_name }}"
+BUILD_REPOSITORY="${BUILD_REPOSITORY}"
+BUILD_BASE_REF="${BUILD_BASE_REF}"
 BUILD_DATE="$(date +%Y-%m-%dT%H:%M:%S%z)"
-BUILD_ACTION="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-BUILD_SHA="${{ github.sha }}"
+BUILD_ACTION="${BUILD_ACTION}"
+BUILD_SHA="${BUILD_SHA}"
 _DOC_
 sed -i 's/^[[:space:]]*//' /etc/devtool-release
 EOF
