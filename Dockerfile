@@ -1,8 +1,13 @@
 #- -----------------------------------------------------------------------------
 #- - Global
 #- -----------------------------------------------------------------------------
-ARG DEBIAN_FRONTEND=noninteractive \
-	DEFAULT_USERNAME=user
+ARG BUILD_ACTION="${BUILD_ACTION:-unknown}" \
+	BUILD_BASE_REF="${BUILD_BASE_REF:-unknown}" \
+	BUILD_REPOSITORY="${BUILD_REPOSITORY:-unknown}" \
+	BUILD_SHA="${BUILD_SHA:-unknown}" \
+	\
+	DEBIAN_FRONTEND=noninteractive \
+	DEFAULT_USERNAME=user \
 
 ## renovate: datasource=github-releases packageName=asdf-vm/asdf versioning=semver automerge=true
 ARG ASDF_VERSION="v0.18.0"
@@ -18,7 +23,13 @@ ARG CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
 #- -----------------------------------------------------------------------------
 FROM ubuntu:24.04@sha256:66460d557b25769b102175144d538d88219c077c678a49af4afca6fbfc1b5252 AS base
 
-ARG CURL_OPTS \
+ARG BUILD_ACTION \
+	BUILD_BASE_REF \
+	BUILD_REPOSITORY \
+	BUILD_SHA \
+	\
+	CURL_OPTS \
+	DEBIAN_FRONTEND \
 	DEFAULT_UID=1100 \
 	DEFAULT_GID=1100 \
 	DEFAULT_USERNAME \
@@ -408,6 +419,19 @@ ln -sf /dev/null /etc/systemd/user/gpg-agent.service
 EOF
 
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts		/opt/devtool
+RUN <<EOF
+echo "**** Add /etc/devtool-release ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > /etc/devtool-release
+BUILD_REPOSITORY="${BUILD_REPOSITORY}"
+BUILD_BASE_REF="${BUILD_BASE_REF}"
+BUILD_DATE="$(date +%Y-%m-%dT%H:%M:%S%z)"
+BUILD_ACTION="${BUILD_ACTION}"
+BUILD_SHA="${BUILD_SHA}"
+_DOC_
+sed -i 's/^[[:space:]]*//' /etc/devtool-release
+EOF
 
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root
