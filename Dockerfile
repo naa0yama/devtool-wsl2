@@ -295,8 +295,7 @@ EOF
 RUN mkdir -p ~/.config/mise
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 mise.toml /home/${DEFAULT_USERNAME}/.config/mise/config.toml
 RUN mise install && \
-	mise ls && \
-	exit 1
+	mise ls
 
 RUN echo "**** rust tools path check ****" && \
 	set -euxo pipefail && \
