@@ -146,29 +146,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	&& \
 	type -p mise
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-	--mount=type=cache,target=/var/lib/apt,sharing=locked \
-	\
-	echo "**** Install dprint ****" && \
-	set -euxo pipefail && \
-	_download_url="$(curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' \
-	https://api.github.com/repos/dprint/dprint/releases/tags/${DPRINT_VERSION} | \
-	jq -r '.assets[] | select(.name | endswith("x86_64-unknown-linux-gnu.zip")) | .browser_download_url')" && \
-	_filename="$(basename "$_download_url")" && \
-	curl ${CURL_OPTS} -H 'User-Agent: builder/1.0' -o "./${_filename}" "${_download_url}" && \
-	unzip "${_filename}" -d /usr/local/bin/ && \
-	type -p dprint && \
-	rm -rf "./${_filename}"
-
-RUN echo "**** Install git-secrets ****" && \
-	set -euxo pipefail && \
-	cd /tmp && \
-	git clone --depth 1 https://github.com/awslabs/git-secrets.git && \
-	cd git-secrets && \
-	make install && \
-	type -p /usr/local/bin/git-secrets && \
-	rm -rf /tmp/git-secrets
-
 USER ${DEFAULT_USERNAME}
 
 
@@ -296,13 +273,6 @@ RUN mkdir -p ~/.config/mise
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 mise.toml /home/${DEFAULT_USERNAME}/.config/mise/config.toml
 RUN mise install && \
 	mise ls
-
-RUN echo "**** rust tools path check ****" && \
-	set -euxo pipefail && \
-	source ~/.bashrc && \
-	type -p dua && \
-	type -p rg && \
-	type -p topgrade
 
 USER root
 RUN <<EOF

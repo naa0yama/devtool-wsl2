@@ -1,15 +1,13 @@
 [tools]
+"github:Byron/dua-cli" = "latest"
+"github:topgrade-rs/topgrade" = "latest"
 aws-sam-cli = { version = "latest", symlink_bins = "true" }
 awscli = { version = "latest", symlink_bins = "true" }
-poetry = "2.2"
-usage = "latest"
+dprint = "latest"
 fzf = "latest"
 ghq = "latest"
-python = "3.14"
+ripgrep = "latest"
 rust = "latest"
 starship = "latest"
-terraform = "1.14"
 tmux = "3.6a"
-ripgrep = "latest"
-"github:topgrade-rs/topgrade" = "latest"
-"github:Byron/dua-cli" = "latest"
+usage = "latest"
