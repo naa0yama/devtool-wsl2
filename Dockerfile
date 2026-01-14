@@ -1,8 +1,13 @@
 #- -----------------------------------------------------------------------------
 #- - Global
 #- -----------------------------------------------------------------------------
-ARG DEBIAN_FRONTEND=noninteractive \
-	DEFAULT_USERNAME=user
+ARG BUILD_ACTION="${BUILD_ACTION:-unknown}" \
+	BUILD_BASE_REF="${BUILD_BASE_REF:-unknown}" \
+	BUILD_REPOSITORY="${BUILD_REPOSITORY:-unknown}" \
+	BUILD_SHA="${BUILD_SHA:-unknown}" \
+	\
+	DEBIAN_FRONTEND=noninteractive \
+	DEFAULT_USERNAME=user \
 
 ## renovate: datasource=github-releases packageName=asdf-vm/asdf versioning=semver automerge=true
 ARG ASDF_VERSION="v0.18.0"
@@ -408,6 +413,19 @@ ln -sf /dev/null /etc/systemd/user/gpg-agent.service
 EOF
 
 COPY --chown=${DEFAULT_USERNAME}:${DEFAULT_USERNAME}	scripts		/opt/devtool
+RUN <<EOF
+echo "**** Add /etc/devtool-release ****"
+set -euxo pipefail
+
+cat <<- _DOC_ > /etc/devtool-release
+BUILD_REPOSITORY="${{ github.server_url }}/${{ github.repository }}"
+BUILD_BASE_REF="${{ github.base_ref || github.ref_name }}"
+BUILD_DATE="$(date +%Y-%m-%dT%H:%M:%S%z)"
+BUILD_ACTION="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+BUILD_SHA="${{ github.sha }}"
+_DOC_
+sed -i 's/^[[:space:]]*//' /etc/devtool-release
+EOF
 
 ## Ref: https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro
 USER root
