@@ -138,6 +138,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	&& \
 	type -p mise
 
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	\
+	echo "**** Install fish ****" && \
+	set -euxo pipefail && \
+	add-apt-repository ppa:fish-shell/release-4 && \
+	apt-get update && \
+	apt-get -y install --no-install-recommends \
+	fish \
+	&& \
+	type -p fish
+
 RUN <<EOF
 echo "**** systemctl mask gpg-agent* ****"
 set -euxo pipefail
@@ -224,6 +236,26 @@ COPY --chown=${DEFAULT_USERNAME} --chmod=644 mise.toml			/home/${DEFAULT_USERNAM
 RUN mise install && \
 	mise ls
 
+RUN <<EOF
+echo "**** add fisher and fish_prompt.fish ****"
+set -euxo pipefail
+
+mkdir -p ~/.config/fish/functions
+curl -sfSL -o ~/.config/fish/functions/fisher.fish \
+	https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
+
+cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
+#!/usr/bin/env fish
+
+function fish_prompt
+	set_color blue
+	echo -n (prompt_pwd)
+	set_color normal
+	echo -n \' > \'
+end
+
+_DOC_
+EOF
 
 #- -----------------------------------------------------------------------------
 #- - Runer
