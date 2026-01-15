@@ -38,7 +38,7 @@ __EOF__
 log_info "Calculating directory size..."
 TOTAL_SIZE=$(du -sb "${HOME}" \
 	"${EXCLUDE_ARGS[@]}" \
-	2>/dev/null | cut -f1)
+	2>/dev/null | cut -f1) || true
 
 log_info "Starting backup: $(numfmt --to=iec "${TOTAL_SIZE}") to compress"
 tar -c \
