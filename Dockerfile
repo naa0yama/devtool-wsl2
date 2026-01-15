@@ -245,7 +245,7 @@ curl -sfSL -o ~/.config/fish/functions/fisher.fish \
 	https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
 
 
-mkdir -p "~/.config/fish/completions" "~/.config/fish/functions"
+mkdir -p ~/.config/fish/completions ~/.config/fish/functions
 ~/.local/bin/mise completion fish > "${HOME}/.config/fish/completions/mise.fish"
 
 cat <<- _DOC_ > ~/.config/fish/config.fish
