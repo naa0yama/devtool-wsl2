@@ -214,7 +214,18 @@ set -euxo pipefail
 
 cat <<- _DOC_ >> ~/.bashrc
 
-# Include ~/.bashrc.d/devtool/ when using login shell
+# Include ~/.bashrc.d/ when using login shell
+if shopt -q login_shell && [ -d ~/.bashrc.d ]; then
+	for script in ~/.bashrc.d/*.sh; do
+		[ -r "\$script" ] && . "\$script"
+	done
+
+	for script in ~/.bashrc.d/devtool/*.sh; do
+		[ -r "\$script" ] && . "\$script"
+	done
+	unset script
+fi
+
 if shopt -q login_shell && [ -d ~/.bashrc.d/devtool ]; then
 	for f in ~/.bashrc.d/devtool/*.sh; do
 		[ -r "\$f" ] && source "\$f"
