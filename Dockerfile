@@ -244,7 +244,19 @@ mkdir -p ~/.config/fish/functions
 curl -sfSL -o ~/.config/fish/functions/fisher.fish \
 	https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
 
-cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
+
+mkdir -p "~/.config/fish/completions" "~/.config/fish/functions"
+~/.local/bin/mise completion fish > "${HOME}/.config/fish/completions/mise.fish"
+
+cat <<- _DOC_ > ~/.config/fish/config.fish
+#!/usr/bin/env fish
+
+# mise
+~/.local/bin/mise activate fish | source
+
+_DOC_
+
+	cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
 #!/usr/bin/env fish
 
 function fish_prompt
