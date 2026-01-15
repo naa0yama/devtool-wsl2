@@ -474,11 +474,11 @@ function Main {
 		Write-Log "// Downloaded Path`t`t$downloadPath"
 		Write-Log "//"
 		Write-Log "// Options:"
-		Write-Log "//`tTag`t`t`t`t$Tag"
-		Write-Log "//`tskipWSLImport`t`t`t$skipWSLImport"
-		Write-Log "//`tskipWSLDefault`t`t`t$skipWSLDefault"
-		Write-Log "//`tskipBackupAndRestore`t`t$skipBackupAndRestore"
-		Write-Log "//`tImportForce`t`t`t$ImportForce"
+		Write-Log "//`tTag`t`t`t$Tag"
+		Write-Log "//`tskipWSLImport`t`t$skipWSLImport"
+		Write-Log "//`tskipWSLDefault`t`t$skipWSLDefault"
+		Write-Log "//`tskipBackupAndRestore`t$skipBackupAndRestore"
+		Write-Log "//`tImportForce`t`t$ImportForce"
 		Write-Log "//"
 
 		Create-Dir $wslPath $downloadPath
