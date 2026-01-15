@@ -221,6 +221,11 @@ if shopt -q login_shell && [ -d ~/.bashrc.d/devtool ]; then
 	done
 fi
 
+# Switch to fish for interactive
+if [[ -z "\$NO_FISH" ]] && command -v fish &> /dev/null; then
+    exec fish
+fi
+
 _DOC_
 EOF
 
@@ -233,8 +238,6 @@ RUN echo "**** Copy mise.toml and install ****" && \
 	set -euxo pipefail && \
 	mkdir -p ~/.config/mise
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 mise.toml			/home/${DEFAULT_USERNAME}/.config/mise/config.toml
-RUN mise install && \
-	mise ls
 
 RUN <<EOF
 echo "**** add fisher and fish_prompt.fish ****"
@@ -244,10 +247,6 @@ mkdir -p ~/.config/fish/functions
 curl -sfSL -o ~/.config/fish/functions/fisher.fish \
 	https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
 
-
-mkdir -p ~/.config/fish/completions ~/.config/fish/functions
-/bin/mise completion fish > "${HOME}/.config/fish/completions/mise.fish"
-
 cat <<- _DOC_ > ~/.config/fish/config.fish
 #!/usr/bin/env fish
 
@@ -256,14 +255,14 @@ cat <<- _DOC_ > ~/.config/fish/config.fish
 
 _DOC_
 
-	cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
+cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
 #!/usr/bin/env fish
 
 function fish_prompt
 	set_color blue
 	echo -n (prompt_pwd)
 	set_color normal
-	echo -n \' > \'
+	echo -n ' > '
 end
 
 _DOC_
