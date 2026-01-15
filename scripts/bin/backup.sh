@@ -25,6 +25,8 @@ EXCLUDE_DIRS=(
 	".bashrc.d/devtool"
 	".cache"
 	".docker"
+	".local/share/mise"
+	".local/state/mise"
 	".dotnet"
 	".vscode-remote-containers"
 	".vscode-server"
