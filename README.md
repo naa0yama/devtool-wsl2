@@ -8,38 +8,77 @@ WSL2 の開発環境を自動構築するセット\
 
 ## Software
 
-| Common software                                                 | Latest software version                                                 |
-| :-------------------------------------------------------------- | :---------------------------------------------------------------------- |
-| [albertony/npiperelay](https://github.com/albertony/npiperelay) | ![GitHub Tag](https://img.shields.io/github/v/tag/albertony/npiperelay) |
-| [BusyJay/gpg-bridge](https://github.com/BusyJay/gpg-bridge)     | ![GitHub Tag](https://img.shields.io/github/v/tag/BusyJay/gpg-bridge)   |
-| [Docker Engine](https://github.com/moby/moby)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)            |
-| [dprint](https://github.com/dprint/dprint)                      | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)        |
-| [mise](https://github.com/jdx/mise)                             | ![GitHub Tag](https://img.shields.io/github/v/tag/jdx/mise)             |
+| Common software                                                 | Latest software version                                                  | Latest commit                                                                          |
+| :-------------------------------------------------------------- | :----------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| [albertony/npiperelay](https://github.com/albertony/npiperelay) | ![GitHub Tag](https://img.shields.io/github/v/tag/albertony/npiperelay)  | ![GitHub last commit](https://img.shields.io/github/last-commit/albertony/npiperelay)  |
+| [BusyJay/gpg-bridge](https://github.com/BusyJay/gpg-bridge)     | ![GitHub Tag](https://img.shields.io/github/v/tag/BusyJay/gpg-bridge)    | ![GitHub last commit](https://img.shields.io/github/last-commit/BusyJay/gpg-bridge)    |
+| [Docker Engine](https://github.com/moby/moby)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/moby/moby)             | ![GitHub last commit](https://img.shields.io/github/last-commit/moby/moby)             |
+| [fish](https://fishshell.com)                                   | ![GitHub Tag](https://img.shields.io/github/v/tag/fish-shell/fish-shell) | ![GitHub last commit](https://img.shields.io/github/last-commit/fish-shell/fish-shell) |
+| [mise](https://github.com/jdx/mise)                             | ![GitHub Tag](https://img.shields.io/github/v/tag/jdx/mise)              | ![GitHub last commit](https://img.shields.io/github/last-commit/jdx/mise)              |
 
-| mise                                                 |
-| :--------------------------------------------------- |
-| [aws-cli](https://github.com/aws/aws-cli/)           |
-| [aws-sam-cli](https://github.com/aws/aws-sam-cli)    |
-| [claude-code](https://code.claude.com/docs/en/setup) |
-| [fzf](https://github.com/junegunn/fzf)               |
-| [ghq](https://github.com/x-motemen/ghq)              |
-| [lefthook](https://github.com/evilmartians/lefthook) |
-| [poetry](https://github.com/python-poetry/poetry)    |
-| [rust](https://github.com/rust-lang/rust)            |
-| [starship](https://github.com/starship/starship)     |
-| [Tmux](https://github.com/tmux/tmux)                 |
+### mise Registry
 
-| Rust Tools                                          | Latest release                                                          |
-| :-------------------------------------------------- | :---------------------------------------------------------------------- |
-| [dua-cli](https://github.com/Byron/dua-cli)         | ![GitHub Tag](https://img.shields.io/github/v/tag/Byron/dua-cli)        |
-| [ripgrep](https://github.com/BurntSushi/ripgrep)    | ![GitHub Tag](https://img.shields.io/github/v/tag/BurntSushi/ripgrep)   |
-| [topgrade](https://github.com/topgrade-rs/topgrade) | ![GitHub Tag](https://img.shields.io/github/v/tag/topgrade-rs/topgrade) |
+| mise Tools                                               | Latest release                                                            | Latest commit                                                                           |
+| :------------------------------------------------------- | :------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------- |
+| [aws-cli](https://github.com/aws/aws-cli/)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)            | ![GitHub last commit](https://img.shields.io/github/last-commit/aws/aws-cli)            |
+| [aws-sam-cli](https://github.com/aws/aws-sam-cli)        | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-sam-cli)        | ![GitHub last commit](https://img.shields.io/github/last-commit/aws/aws-sam-cli)        |
+| [claude-code](https://github.com/anthropics/claude-code) | ![GitHub Tag](https://img.shields.io/github/v/tag/anthropics/claude-code) | ![GitHub last commit](https://img.shields.io/github/last-commit/anthropics/claude-code) |
+| [dotter](https://github.com/SuperCuber/dotter)           | ![GitHub Tag](https://img.shields.io/github/v/tag/SuperCuber/dotter)      | ![GitHub last commit](https://img.shields.io/github/last-commit/SuperCuber/dotter)      |
+| [dprint](https://github.com/dprint/dprint)               | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)          | ![GitHub last commit](https://img.shields.io/github/last-commit/dprint/dprint)          |
+| [dua-cli](https://github.com/Byron/dua-cli)              | ![GitHub Tag](https://img.shields.io/github/v/tag/Byron/dua-cli)          | ![GitHub last commit](https://img.shields.io/github/last-commit/Byron/dua-cli)          |
+| [fzf](https://github.com/junegunn/fzf)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/junegunn/fzf)           | ![GitHub last commit](https://img.shields.io/github/last-commit/junegunn/fzf)           |
+| [ghq](https://github.com/x-motemen/ghq)                  | ![GitHub Tag](https://img.shields.io/github/v/tag/x-motemen/ghq)          | ![GitHub last commit](https://img.shields.io/github/last-commit/x-motemen/ghq)          |
+| [gitleaks](https://github.com/gitleaks/gitleaks)         | ![GitHub Tag](https://img.shields.io/github/v/tag/gitleaks/gitleaks)      | ![GitHub last commit](https://img.shields.io/github/last-commit/gitleaks/gitleaks)      |
+| [lefthook](https://github.com/evilmartians/lefthook)     | ![GitHub Tag](https://img.shields.io/github/v/tag/evilmartians/lefthook)  | ![GitHub last commit](https://img.shields.io/github/last-commit/evilmartians/lefthook)  |
+| [poetry](https://github.com/python-poetry/poetry)        | ![GitHub Tag](https://img.shields.io/github/v/tag/python-poetry/poetry)   | ![GitHub last commit](https://img.shields.io/github/last-commit/python-poetry/poetry)   |
+| [ripgrep](https://github.com/BurntSushi/ripgrep)         | ![GitHub Tag](https://img.shields.io/github/v/tag/BurntSushi/ripgrep)     | ![GitHub last commit](https://img.shields.io/github/last-commit/BurntSushi/ripgrep)     |
+| [rust](https://github.com/rust-lang/rust)                | ![GitHub Tag](https://img.shields.io/github/v/tag/rust-lang/rust)         | ![GitHub last commit](https://img.shields.io/github/last-commit/rust-lang/rust)         |
+| [starship](https://github.com/starship/starship)         | ![GitHub Tag](https://img.shields.io/github/v/tag/starship/starship)      | ![GitHub last commit](https://img.shields.io/github/last-commit/starship/starship)      |
+| [Tmux](https://github.com/tmux/tmux-builds)              | ![GitHub Tag](https://img.shields.io/github/v/tag/tmux/tmux-builds)       | ![GitHub last commit](https://img.shields.io/github/last-commit/tmux/tmux-builds)       |
+| [topgrade](https://github.com/topgrade-rs/topgrade)      | ![GitHub Tag](https://img.shields.io/github/v/tag/topgrade-rs/topgrade)   | ![GitHub last commit](https://img.shields.io/github/last-commit/topgrade-rs/topgrade)   |
+| [usage](https://github.com/jdx/usage)                    | ![GitHub Tag](https://img.shields.io/github/v/tag/jdx/usage)              | ![GitHub last commit](https://img.shields.io/github/last-commit/jdx/usage)              |
 
-## ssh-agent,gpg-agent との統合
+Ref: [Registry | mise-en-place](https://mise.jdx.dev/registry.html?filter=usage#tools)
+
+## ssh-agent, gpg-agent との統合
 
 2026/01/11 の更新から WSL2 の初回起動時に Windows 11 側に `npiperelay.exe`, `gpg-bridge.exe`, `yubikey-tool.ps1` のツールを自動ダウンロードし `%USERPROFILE%/.local/bin` に配置するようになりました。 `yubikey-tool.ps1` は自動起動にも設定され `gpg-agent`, `gpg-bridge` の自動起動、タッチ/PIN入力の通知を実施するタスクトレイアプリケーションです。
 
 これにより WSL2 上でも手軽に GPG 鍵を利用でき、 `gpg-bridge` を使うことで SSH 先でも GPG 署名できるようになりました。
+
+> [!TIP] Windows 11 の .ssh/config 例
+> Remote SSH 先の uid (`id -u` の結果)が 1000 の場合下記を設定します
+> ```bash
+> Host exsample-01
+> 	HostName 192.0.2.1
+> 	ForwardAgent yes
+> 	User naa0yama
+> 	RemoteForward /run/user/1000/gnupg/S.gpg-agent 127.0.0.1:4321
+> 	# StreamLocalBindUnlink yes は書かない (systemd で処理)
+> 
+> ```
+
+> [!TIP] Remote SSH 先のセットアップ
+> Remote 先でも ssh-agent, gpg-agent の設定が必要です。 setup.sh にまとめてあるためこれを実行します
+> 
+> ```bash
+> curl -sfSL -o /tmp/setup.sh \
+>   https://raw.githubusercontent.com/naa0yama/devtool-wsl2/refs/heads/main/scripts/bin/setup.sh
+> 
+> bash /tmp/setup.sh
+> ```
+> 
+> また、 `~/.bashrc.d` 配下に `21-ssh-agent.sh`, `22-gpg-agent.sh` を吐くためこれらを `~/.bashrc` で読み込むように末尾に追加する
+> 
+> ```bash
+> # Include ~/.bashrc.d/ when using login shell
+> if shopt -q login_shell && [ -d ~/.bashrc.d ]; then
+>     for script in ~/.bashrc.d/*.sh; do
+>         [ -r "$script" ] && . "$script"
+>     done
+> fi
+> 
+> ```
 
 ## 使い方
 
@@ -133,3 +172,28 @@ user@dead-desk1:~$
 wsl -t dwsl2-8718ff1
 wsl --unregister dwsl2-8718ff1
 ```
+
+### Fish ではなく Bash を起動する場合
+
+デフォルトではユーザーフレンドリーのために `login shell` -> `~/.bashrc` -> `exec fish` のような起動順序で fish shell が立ち上がります。が、 POSIX 準拠 SHELL ではないため GenAI などで生成したスクリプトは上手く機能しない可能性があります。その場合 Bash を起動するには、下記の方法を用意しています。`NO_FISH` 変数が定義済みの場合 `~/.bashrc` で `exec fish` を実行しないようにしている。  
+
+
+```powershell
+# デフォルト WSL2 にしている場合
+wsl NO_FISH=true bash -l
+
+# ディストリビューションを指定する場合
+wsl -d dwsl2-8718ff1 NO_FISH=true bash -l
+
+```
+
+> [!TIP] Bash を永続起動にする
+> 本イメージの中身は Fish, Bash どちらも設定済みのため Bash のみを永続的に利用したい場合は `~/.bashrc` の末尾にある下記をコメントアウトすれば fish を起動しません
+>
+> ```bash
+> # Switch to fish for interactive
+> if [[ -z "\$NO_FISH" ]] && command -v fish &> /dev/null; then
+>     exec fish
+> fi
+> 
+> ```

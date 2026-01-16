@@ -51,14 +51,25 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	apt-get -y install --no-install-recommends unminimize && \
 	yes | unminimize && \
 	apt-get -y install --no-install-recommends \
+	# System utils
+	ca-certificates \
+	command-not-found \
+	libevent-dev \
+	libncurses5-dev \
+	man \
+	man-db \
+	openssh-client \
+	pkg-config \
+	software-properties-common \
+	sudo \
+	# Development tools
 	automake \
+	bison \
+	build-essential \
+	# CLI tools
 	bash \
 	bash-completion \
 	bind9-dnsutils \
-	bison \
-	build-essential \
-	ca-certificates \
-	command-not-found \
 	curl \
 	git \
 	gnupg \
@@ -69,20 +80,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	iputils-tracepath \
 	jq \
 	less \
-	libevent-dev \
-	libncurses5-dev \
 	lsof \
-	man \
-	man-db \
 	mtr \
 	nano \
-	openssh-client \
-	pkg-config \
 	pv \
 	rsync \
 	socat \
-	software-properties-common \
-	sudo \
 	tcpdump \
 	time \
 	traceroute \
@@ -137,6 +140,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	mise \
 	&& \
 	type -p mise
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	\
+	echo "**** Install fish ****" && \
+	set -euxo pipefail && \
+	add-apt-repository ppa:fish-shell/release-4 && \
+	apt-get update && \
+	apt-get -y install --no-install-recommends \
+	fish \
+	&& \
+	type -p fish
 
 RUN <<EOF
 echo "**** systemctl mask gpg-agent* ****"
@@ -202,11 +217,27 @@ set -euxo pipefail
 
 cat <<- _DOC_ >> ~/.bashrc
 
-# Include ~/.bashrc.d/devtool/ when using login shell
+# Include ~/.bashrc.d/ when using login shell
+if shopt -q login_shell && [ -d ~/.bashrc.d ]; then
+	for script in ~/.bashrc.d/*.sh; do
+		[ -r "\$script" ] && . "\$script"
+	done
+
+	for script in ~/.bashrc.d/devtool/*.sh; do
+		[ -r "\$script" ] && . "\$script"
+	done
+	unset script
+fi
+
 if shopt -q login_shell && [ -d ~/.bashrc.d/devtool ]; then
 	for f in ~/.bashrc.d/devtool/*.sh; do
 		[ -r "\$f" ] && source "\$f"
 	done
+fi
+
+# Switch to fish for interactive
+if [[ -z "\$NO_FISH" ]] && command -v fish &> /dev/null; then
+    exec fish
 fi
 
 _DOC_
@@ -217,13 +248,38 @@ RUN echo "**** Copy ~/.bashrc.d/devtool ****" && \
 	mkdir -p ~/.local/bin ~/.bashrc.d/devtool
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 .bashrc.d/devtool/	/home/${DEFAULT_USERNAME}/.bashrc.d/devtool
 
-RUN echo "**** Copy mise.toml and install ****" && \
+RUN echo "**** Create Directory ~/.config/mise ****" && \
 	set -euxo pipefail && \
 	mkdir -p ~/.config/mise
-COPY --chown=${DEFAULT_USERNAME} --chmod=644 mise.toml			/home/${DEFAULT_USERNAME}/.config/mise/config.toml
-RUN mise install && \
-	mise ls
 
+RUN <<EOF
+echo "**** add fisher and fish_prompt.fish ****"
+set -euxo pipefail
+
+mkdir -p ~/.config/fish/functions
+curl -sfSL -o ~/.config/fish/functions/fisher.fish \
+	https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
+
+cat <<- _DOC_ > ~/.config/fish/config.fish
+#!/usr/bin/env fish
+
+# mise
+/bin/mise activate fish | source
+
+_DOC_
+
+cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
+#!/usr/bin/env fish
+
+function fish_prompt
+	set_color green
+	echo -n (prompt_pwd)
+	set_color normal
+	echo -n '> '
+end
+
+_DOC_
+EOF
 
 #- -----------------------------------------------------------------------------
 #- - Runer
