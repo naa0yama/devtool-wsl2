@@ -245,10 +245,9 @@ RUN echo "**** Copy ~/.bashrc.d/devtool ****" && \
 	mkdir -p ~/.local/bin ~/.bashrc.d/devtool
 COPY --chown=${DEFAULT_USERNAME} --chmod=644 .bashrc.d/devtool/	/home/${DEFAULT_USERNAME}/.bashrc.d/devtool
 
-RUN echo "**** Copy mise.toml and install ****" && \
+RUN echo "**** Create Directory ~/.config/mise ****" && \
 	set -euxo pipefail && \
 	mkdir -p ~/.config/mise
-COPY --chown=${DEFAULT_USERNAME} --chmod=644 mise.toml			/home/${DEFAULT_USERNAME}/.config/mise/config.toml
 
 RUN <<EOF
 echo "**** add fisher and fish_prompt.fish ****"
@@ -270,10 +269,10 @@ cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
 #!/usr/bin/env fish
 
 function fish_prompt
-	set_color blue
+	set_color green
 	echo -n (prompt_pwd)
 	set_color normal
-	echo -n ' > '
+	echo -n '> '
 end
 
 _DOC_
