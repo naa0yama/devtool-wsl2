@@ -51,14 +51,25 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	apt-get -y install --no-install-recommends unminimize && \
 	yes | unminimize && \
 	apt-get -y install --no-install-recommends \
+	# System utils
+	ca-certificates \
+	command-not-found \
+	libevent-dev \
+	libncurses5-dev \
+	man \
+	man-db \
+	openssh-client \
+	pkg-config \
+	software-properties-common \
+	sudo \
+	# Development tools
 	automake \
+	bison \
+	build-essential \
+	# CLI tools
 	bash \
 	bash-completion \
 	bind9-dnsutils \
-	bison \
-	build-essential \
-	ca-certificates \
-	command-not-found \
 	curl \
 	git \
 	gnupg \
@@ -69,20 +80,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	iputils-tracepath \
 	jq \
 	less \
-	libevent-dev \
-	libncurses5-dev \
 	lsof \
-	man \
-	man-db \
 	mtr \
 	nano \
-	openssh-client \
-	pkg-config \
 	pv \
 	rsync \
 	socat \
-	software-properties-common \
-	sudo \
 	tcpdump \
 	time \
 	traceroute \
