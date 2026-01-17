@@ -218,7 +218,7 @@ set -euxo pipefail
 cat <<- _DOC_ >> ~/.bashrc
 
 # Include ~/.bashrc.d/ when using login shell
-if shopt -q login_shell && [ -d ~/.bashrc.d ]; then
+if [ -d ~/.bashrc.d ]; then
 	for script in ~/.bashrc.d/*.sh; do
 		[ -r "\$script" ] && . "\$script"
 	done
@@ -229,15 +229,9 @@ if shopt -q login_shell && [ -d ~/.bashrc.d ]; then
 	unset script
 fi
 
-if shopt -q login_shell && [ -d ~/.bashrc.d/devtool ]; then
-	for f in ~/.bashrc.d/devtool/*.sh; do
-		[ -r "\$f" ] && source "\$f"
-	done
-fi
-
 # Switch to fish for interactive
 if [[ -z "\$NO_FISH" ]] && command -v fish &> /dev/null; then
-    exec fish
+	exec fish
 fi
 
 _DOC_
