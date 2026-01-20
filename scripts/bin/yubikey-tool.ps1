@@ -46,8 +46,14 @@
 .PARAMETER RemoveStartup
 	Remove shortcut from Windows startup
 
+.PARAMETER Stop
+	Stop all running yubikey-tool instances and GPG processes
+
 .EXAMPLE
 	.\yubikey-tool.ps1
+
+.EXAMPLE
+	.\yubikey-tool.ps1 -Stop
 
 .EXAMPLE
 	.\yubikey-tool.ps1 -GpgBridgeArgs "--extra 127.0.0.1:4321 --ssh \\.\pipe\gpg-bridge-ssh"
@@ -92,7 +98,10 @@ param(
 	[switch]$AddStartup = $false,
 
 	[Parameter()]
-	[switch]$RemoveStartup = $false
+	[switch]$RemoveStartup = $false,
+
+	[Parameter()]
+	[switch]$Stop = $false
 )
 
 # Error action preference
@@ -644,21 +653,88 @@ function Stop-ExistingInstances {
 	}
 }
 
+function Write-DiagnosticLog {
+	<#
+	.SYNOPSIS
+		Record diagnostic information at startup for troubleshooting
+	#>
+
+	Write-Log "=== Diagnostic Information ===" -Level INFO
+
+	# 1. Smart Card Service status
+	try {
+		$scardService = Get-Service -Name "SCardSvr" -ErrorAction SilentlyContinue
+		if ($scardService) {
+			Write-Log "Smart Card Service (SCardSvr): $($scardService.Status)" -Level INFO
+		}
+		else {
+			Write-Log "Smart Card Service (SCardSvr): NOT FOUND" -Level WARN
+		}
+	}
+	catch {
+		Write-Log "Failed to check Smart Card Service: $_" -Level WARN
+	}
+
+	# 2. Existing GPG-related processes
+	try {
+		$gpgProcs = Get-Process -Name "gpg" -ErrorAction SilentlyContinue
+		$agentProcs = Get-Process -Name "gpg-agent" -ErrorAction SilentlyContinue
+		$scdProcs = Get-Process -Name "scdaemon" -ErrorAction SilentlyContinue
+		$bridgeProcs = Get-Process -Name "gpg-bridge" -ErrorAction SilentlyContinue
+
+		Write-Log "Existing processes: gpg=$(@($gpgProcs).Count), gpg-agent=$(@($agentProcs).Count), scdaemon=$(@($scdProcs).Count), gpg-bridge=$(@($bridgeProcs).Count)" -Level INFO
+
+		# Log scdaemon details if exists
+		if ($scdProcs) {
+			foreach ($proc in $scdProcs) {
+				$uptime = (Get-Date) - $proc.StartTime
+				Write-Log "  scdaemon PID=$($proc.Id), Uptime=$([int]$uptime.TotalSeconds)s, CPU=$($proc.CPU)s" -Level INFO
+			}
+		}
+	}
+	catch {
+		Write-Log "Failed to check existing processes: $_" -Level WARN
+	}
+
+	Write-Log "=== End Diagnostic Information ===" -Level INFO
+}
+
 function Stop-Agents {
 	<#
 	.SYNOPSIS
-		Safely stop gpg-agent, gpg-bridge, and gpg processes
+		Safely stop gpg-agent, gpg-bridge, scdaemon and gpg processes
+		Uses "gpg-connect-agent killagent /bye" (Yubico official method) with fallback to process kill
 	#>
 
 	Write-Log "Stopping existing GPG processes..."
 
-	$terminated = 0
-	$terminated += Stop-ProcessByName -Name "gpg"
-	$terminated += Stop-ProcessByName -Name "gpg-agent"
-	$terminated += Stop-ProcessByName -Name "gpg-bridge"
+	# Try official method first: gpg-connect-agent killagent /bye
+	Write-Log "Stopping gpg-agent via 'gpg-connect-agent killagent /bye'..." -Level DEBUG
+	try {
+		$psi = New-Object System.Diagnostics.ProcessStartInfo
+		$psi.FileName = "gpg-connect-agent"
+		$psi.Arguments = "killagent /bye"
+		$psi.UseShellExecute = $false
+		$psi.RedirectStandardOutput = $true
+		$psi.RedirectStandardError = $true
+		$psi.CreateNoWindow = $true
 
-	if ($terminated -gt 0) {
-		Start-Sleep -Milliseconds 500
+		$process = New-Object System.Diagnostics.Process
+		$process.StartInfo = $psi
+		$process.Start() | Out-Null
+		$completed = $process.WaitForExit(5000)
+
+		if ($completed) {
+			Write-Log "gpg-connect-agent killagent /bye: exit=$($process.ExitCode)" -Level DEBUG
+		}
+		else {
+			Write-Log "gpg-connect-agent killagent /bye: TIMEOUT, falling back to process kill" -Level DEBUG
+			try { $process.Kill() } catch { }
+		}
+		$process.Dispose()
+	}
+	catch {
+		Write-Log "gpg-connect-agent killagent /bye failed: $_, falling back to process kill" -Level DEBUG
 	}
 
 	Write-Log "GPG processes stopped"
@@ -667,16 +743,133 @@ function Stop-Agents {
 function Restart-Agents {
 	<#
 	.SYNOPSIS
-		Stop agents, check stale pipes, and start agents
+		Stop and restart gpg-agent, scdaemon, and gpg-bridge using official GnuPG methods
+		Reference: https://developers.yubico.com/PGP/SSH_authentication/Windows.html
 	.OUTPUTS
 		Boolean indicating success
 	#>
 
+	Write-Log "Restarting agents..." -Level INFO
+
+	# Step 1: Stop all agents (uses gpg-connect-agent killagent /bye + fallback + lock cleanup)
 	Stop-Agents
-	Test-StalePipes | Out-Null
-	$agentOk = Start-GpgAgent
+
+	# Step 2: Wait for processes to fully terminate
+	Write-Log "Waiting for processes to terminate..." -Level DEBUG
+	Start-Sleep -Seconds 2
+
+	# Step 3: Start gpg-agent via "gpg-connect-agent /bye" (official method)
+	# This automatically starts gpg-agent if not running, and scdaemon when needed
+	Write-Log "Starting gpg-agent via 'gpg-connect-agent /bye'..." -Level INFO
+	try {
+		$psi = New-Object System.Diagnostics.ProcessStartInfo
+		$psi.FileName = "gpg-connect-agent"
+		$psi.Arguments = "/bye"
+		$psi.UseShellExecute = $false
+		$psi.RedirectStandardOutput = $true
+		$psi.RedirectStandardError = $true
+		$psi.CreateNoWindow = $true
+
+		$process = New-Object System.Diagnostics.Process
+		$process.StartInfo = $psi
+
+		$startTime = Get-Date
+		$process.Start() | Out-Null
+		$completed = $process.WaitForExit(30000)  # 30 second timeout
+		$elapsed = [int]((Get-Date) - $startTime).TotalMilliseconds
+
+		if ($completed) {
+			$exitCode = $process.ExitCode
+			$stderr = $process.StandardError.ReadToEnd()
+			$process.Dispose()
+
+			if ($exitCode -eq 0) {
+				Write-Log "gpg-connect-agent /bye: OK (${elapsed}ms)" -Level INFO
+			}
+			else {
+				Write-Log "gpg-connect-agent /bye: exit=$exitCode (${elapsed}ms)" -Level WARN
+				if ($stderr) { Write-Log "  stderr: $($stderr.Trim())" -Level DEBUG }
+				return $false
+			}
+		}
+		else {
+			Write-Log "gpg-connect-agent /bye: TIMEOUT (30000ms)" -Level WARN
+			try {
+				$process.Kill()
+				$process.WaitForExit(1000) | Out-Null
+			}
+			catch { }
+			$process.Dispose()
+			return $false
+		}
+	}
+	catch {
+		Write-Log "gpg-connect-agent /bye failed: $_" -Level ERROR
+		return $false
+	}
+
+	# Step 4: Initialize card access with long timeout (first gpg command triggers initialization)
+	# GPG performs various initialization on first command, which can take 15-30 seconds
+	Write-Log "Initializing card access (this may take up to 60 seconds on first run)..." -Level INFO
+	try {
+		$psi = New-Object System.Diagnostics.ProcessStartInfo
+		$psi.FileName = $GpgPath
+		$psi.Arguments = "--card-status"
+		$psi.UseShellExecute = $false
+		$psi.RedirectStandardOutput = $true
+		$psi.RedirectStandardError = $true
+		$psi.CreateNoWindow = $true
+
+		$process = New-Object System.Diagnostics.Process
+		$process.StartInfo = $psi
+
+		$startTime = Get-Date
+		$process.Start() | Out-Null
+		$completed = $process.WaitForExit(60000)  # 60 second timeout for initial card access
+		$elapsed = [int]((Get-Date) - $startTime).TotalMilliseconds
+
+		if ($completed) {
+			$exitCode = $process.ExitCode
+			$stderr = $process.StandardError.ReadToEnd()
+			$process.Dispose()
+
+			if ($exitCode -eq 0) {
+				Write-Log "Card initialization: OK (${elapsed}ms)" -Level INFO
+			}
+			elseif ($exitCode -eq 2 -and $stderr -match "No such device|card not present|Card not present") {
+				Write-Log "Card initialization: No card detected, but GPG ready (${elapsed}ms)" -Level INFO
+			}
+			else {
+				Write-Log "Card initialization: exit=$exitCode (${elapsed}ms)" -Level WARN
+				if ($stderr) { Write-Log "  stderr: $($stderr.Trim())" -Level DEBUG }
+				# Continue anyway - card might not be inserted
+			}
+		}
+		else {
+			Write-Log "Card initialization: TIMEOUT (60000ms)" -Level WARN
+			try {
+				$process.Kill()
+				$process.WaitForExit(1000) | Out-Null
+			}
+			catch { }
+			$process.Dispose()
+			# Continue anyway - will retry on next polling cycle
+		}
+	}
+	catch {
+		Write-Log "Card initialization failed: $_" -Level WARN
+		# Continue anyway
+	}
+
+	# Step 5: Start gpg-bridge
 	$bridgeOk = Start-GpgBridge
-	return ($agentOk -and $bridgeOk)
+	if (-not $bridgeOk) {
+		Write-Log "gpg-bridge failed to start" -Level WARN
+		return $false
+	}
+
+	Write-Log "Agents started successfully" -Level INFO
+	return $true
 }
 
 function Test-StalePipes {
@@ -1163,8 +1356,20 @@ if ($RemoveStartup) {
 	exit 0
 }
 
+# Stop: Terminate all instances and GPG processes
+if ($Stop) {
+	Write-Host "Stopping all yubikey-tool instances and GPG processes..." -ForegroundColor Yellow
+	Stop-ExistingInstances
+	Stop-Agents
+	Write-Host "All processes stopped." -ForegroundColor Green
+	exit 0
+}
+
 # Stop existing yubikey-tool instances first
 Stop-ExistingInstances
+
+# Record diagnostic information before stopping agents
+Write-DiagnosticLog
 
 # Restart gpg-agent / gpg-bridge
 Restart-Agents | Out-Null
