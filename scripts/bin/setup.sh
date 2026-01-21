@@ -27,7 +27,11 @@ log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
 log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
 log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# SCRIPT_DIR: empty when piped (curl | bash), set when executed directly
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" ]]; then
+	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 LOCK_FILE="${HOME}/.cache/devtool-setup.lock"
 
 ## renovate: datasource=github-releases packageName=albertony/npiperelay versioning=semver automerge=true
@@ -338,7 +342,12 @@ EOF
 
 	log_info "sshd config: created ${sshd_conf}"
 	log_info "Restarting sshd..."
-	sudo systemctl restart sshd
+	# Debian/Ubuntu: ssh.service, RHEL/CentOS: sshd.service
+	if systemctl list-unit-files ssh.service &>/dev/null; then
+		sudo systemctl restart ssh
+	else
+		sudo systemctl restart sshd
+	fi
 	log_info "sshd: restarted"
 }
 
