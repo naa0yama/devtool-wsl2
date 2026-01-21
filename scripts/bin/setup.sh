@@ -11,9 +11,8 @@ set -euo pipefail
 #
 # Remote mode:
 #   - No Windows tools installed (gpg-bridge runs on Windows, not remote)
-#   - GPG: SSH RemoteForward creates socket directly (no systemd relay needed)
-#   - SSH: Uses SSH ForwardAgent (no custom setup needed)
-#   - Installs gpg-socket-cleanup.service to remove stale socket on login
+#   - Configures sshd: StreamLocalBindUnlink yes for current user (via sudo)
+#   - Displays Windows SSH client config (RemoteForward for GPG, ForwardAgent for SSH)
 #
 # Usage:
 #   WSL2:   ./setup.sh
@@ -306,46 +305,60 @@ EOF
 	log_info "systemd units: installed"
 }
 
-install_systemd_units_remote() {
-	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+configure_sshd_remote() {
+	local sshd_conf="/etc/ssh/sshd_config.d/50-stream-local-bind-unlink.conf"
+	local current_user
+	current_user="$(id -un)"
 
-	log_info "Installing systemd user units (Remote)..."
-	mkdir -p "${systemd_dst}"
+	log_info "Configuring sshd for StreamLocalBindUnlink..."
+	echo ""
+	echo "This will create: ${sshd_conf}"
+	echo "With the following content:"
+	echo ""
+	echo "  # Allow StreamLocalBindUnlink for user: ${current_user}"
+	echo "  # This enables SSH RemoteForward to overwrite existing sockets"
+	echo "  Match User ${current_user}"
+	echo "      StreamLocalBindUnlink yes"
+	echo ""
 
-	# Remove old gpg-agent.socket and gpg-agent@.service if they exist
-	if [ -f "${systemd_dst}/gpg-agent.socket" ]; then
-		systemctl --user disable --now gpg-agent.socket 2>/dev/null || true
-		rm -f "${systemd_dst}/gpg-agent.socket"
-		log_info "gpg-agent.socket: removed (old)"
+	if [ -f "${sshd_conf}" ]; then
+		if grep -q "Match User ${current_user}" "${sshd_conf}" 2>/dev/null; then
+			log_info "sshd config: already configured for user ${current_user}"
+			return
+		fi
 	fi
-	rm -f "${systemd_dst}/gpg-agent@.service"
 
-	# gpg-socket-cleanup.service
-	# Removes stale GPG socket on login so SSH RemoteForward can create it
-	# Also creates extra socket symlink for devcontainer GPG forwarding
-	cat > "${systemd_dst}/gpg-socket-cleanup.service" << 'EOF'
-[Unit]
-Description=Clean up GPG agent socket for SSH RemoteForward
-Documentation=man:gpg-agent(1)
-# Run early in the login process, before SSH connection is fully established
-DefaultDependencies=no
-Before=default.target
-
-[Service]
-Type=oneshot
-ExecStart=/bin/rm -f %t/gnupg/S.gpg-agent %t/gnupg/S.gpg-agent.extra
-ExecStart=/bin/mkdir -p %t/gnupg
-ExecStart=/bin/ln -sf S.gpg-agent %t/gnupg/S.gpg-agent.extra
-RemainAfterExit=no
-
-[Install]
-WantedBy=default.target
+	log_info "Running sudo to write sshd configuration..."
+	sudo tee "${sshd_conf}" > /dev/null << EOF
+# Allow StreamLocalBindUnlink for user: ${current_user}
+# This enables SSH RemoteForward to overwrite existing sockets
+Match User ${current_user}
+    StreamLocalBindUnlink yes
 EOF
 
-	systemctl --user daemon-reload
-	systemctl --user enable gpg-socket-cleanup.service
+	log_info "sshd config: created ${sshd_conf}"
+	log_info "Restarting sshd..."
+	sudo systemctl restart sshd
+	log_info "sshd: restarted"
+}
 
-	log_info "systemd units: installed"
+show_remote_setup_instructions() {
+	local uid gpg_sock_dir
+	uid="$(id -u)"
+	gpg_sock_dir="/run/user/${uid}/gnupg"
+
+	echo ""
+	log_info "=== Windows SSH Client Configuration ==="
+	echo ""
+	echo "Add to your Windows SSH config (~/.ssh/config):"
+	echo ""
+	echo "  Host your-remote-host"
+	echo "      HostName example.com"
+	echo "      User $(id -un)"
+	echo "      ForwardAgent yes"
+	echo "      RemoteForward ${gpg_sock_dir}/S.gpg-agent 127.0.0.1:4321"
+	echo "      RemoteForward ${gpg_sock_dir}/S.gpg-agent.extra 127.0.0.1:4321"
+	echo ""
 }
 
 install_shell_config_wsl2() {
@@ -415,34 +428,6 @@ EOF
 	log_info "Created: ${bashrc_d}/22-gpg-agent.sh"
 }
 
-install_shell_config_remote() {
-	local bashrc_d="${HOME}/.bashrc.d"
-
-	log_info "Installing shell configuration..."
-	mkdir -p "${bashrc_d}"
-
-	# SSH: ForwardAgent sets SSH_AUTH_SOCK automatically, no config needed
-
-	# GPG agent config - check if socket exists (created by SSH RemoteForward)
-	cat > "${bashrc_d}/22-gpg-agent.sh" << 'EOF'
-#!/usr/bin/env bash
-
-# Logger
-log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
-log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
-log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
-
-# GPG agent socket (created by SSH RemoteForward)
-__GPG_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnupg/S.gpg-agent"
-if [ ! -S "${__GPG_SOCK}" ]; then
-    log_warn "GPG agent socket not found: ${__GPG_SOCK}"
-    log_info "       Ensure SSH RemoteForward is configured on your Windows host"
-fi
-unset __GPG_SOCK
-EOF
-	log_info "Created: ${bashrc_d}/22-gpg-agent.sh"
-}
-
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
@@ -485,8 +470,8 @@ main_remote() {
 
 	check_dependencies
 	configure_gpg
-	install_systemd_units_remote
-	install_shell_config_remote
+	configure_sshd_remote
+	show_remote_setup_instructions
 
 	# Create lock file
 	mkdir -p "$(dirname "${LOCK_FILE}")"
