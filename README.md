@@ -46,7 +46,9 @@ Ref: [Registry | mise-en-place](https://mise.jdx.dev/registry.html?filter=usage#
 
 これにより WSL2 上でも手軽に GPG 鍵を利用でき、 `gpg-bridge` を使うことで SSH 先でも GPG 署名できるようになりました。
 
-> [!TIP] Windows 11 の .ssh/config 例
+> [!TIP]
+> **Windows 11 の .ssh/config 例**
+> 
 > Remote SSH 先の uid (`id -u` の結果)が 1000 の場合下記を設定します
 >
 > ```text
@@ -58,7 +60,9 @@ Ref: [Registry | mise-en-place](https://mise.jdx.dev/registry.html?filter=usage#
 >     RemoteForward /run/user/1000/gnupg/S.gpg-agent.extra 127.0.0.1:4321
 > ```
 
-> [!TIP] Remote SSH 先のセットアップ
+> [!TIP]
+> **Remote SSH 先のセットアップ**
+> 
 > Remote 先でも gpg-agent の設定が必要です。 setup.sh にまとめてあるためこれを実行します。
 > このスクリプトは以下を実行します:
 >
