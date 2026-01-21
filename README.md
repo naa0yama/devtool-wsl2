@@ -48,36 +48,26 @@ Ref: [Registry | mise-en-place](https://mise.jdx.dev/registry.html?filter=usage#
 
 > [!TIP] Windows 11 の .ssh/config 例
 > Remote SSH 先の uid (`id -u` の結果)が 1000 の場合下記を設定します
-> ```bash
-> Host exsample-01
-> 	HostName 192.0.2.1
-> 	ForwardAgent yes
-> 	User naa0yama
-> 	RemoteForward /run/user/1000/gnupg/S.gpg-agent 127.0.0.1:4321
-> 	# StreamLocalBindUnlink yes は書かない (systemd で処理)
-> 
+>
+> ```text
+> Host example-01
+>     HostName 192.0.2.1
+>     ForwardAgent yes
+>     User naa0yama
+>     RemoteForward /run/user/1000/gnupg/S.gpg-agent 127.0.0.1:4321
+>     RemoteForward /run/user/1000/gnupg/S.gpg-agent.extra 127.0.0.1:4321
 > ```
 
 > [!TIP] Remote SSH 先のセットアップ
-> Remote 先でも ssh-agent, gpg-agent の設定が必要です。 setup.sh にまとめてあるためこれを実行します
-> 
+> Remote 先でも gpg-agent の設定が必要です。 setup.sh にまとめてあるためこれを実行します。
+> このスクリプトは以下を実行します:
+>
+> - GPG の設定 (`no-autostart` を追加、gpg-agent サービスをマスク)
+> - sshd の設定 (`StreamLocalBindUnlink yes` を現在のユーザーに許可)
+> - Windows SSH client の設定例を表示
+>
 > ```bash
-> curl -sfSL -o /tmp/setup.sh \
->   https://raw.githubusercontent.com/naa0yama/devtool-wsl2/refs/heads/main/scripts/bin/setup.sh
-> 
-> bash /tmp/setup.sh
-> ```
-> 
-> また、 `~/.bashrc.d` 配下に `21-ssh-agent.sh`, `22-gpg-agent.sh` を吐くためこれらを `~/.bashrc` で読み込むように末尾に追加する
-> 
-> ```bash
-> # Include ~/.bashrc.d/ when using login shell
-> if shopt -q login_shell && [ -d ~/.bashrc.d ]; then
->     for script in ~/.bashrc.d/*.sh; do
->         [ -r "$script" ] && . "$script"
->     done
-> fi
-> 
+> curl -fsSL https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main/scripts/bin/setup.sh | bash
 > ```
 
 ## 使い方
