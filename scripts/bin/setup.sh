@@ -51,6 +51,7 @@ is_wsl2() {
 
 # Convert Windows paths: remove CR, convert backslashes to forward slashes
 fixpath() {
+	# shellcheck disable=SC1003
 	tr -d '\r' | tr '\\' '/'
 }
 
@@ -370,6 +371,82 @@ show_remote_setup_instructions() {
 	echo ""
 }
 
+install_ssh_rc_remote() {
+	local ssh_rc="${HOME}/.ssh/rc"
+
+	log_info "Installing ${ssh_rc} for SSH agent forwarding (tmux compatible)..."
+
+	# Ensure ~/.ssh exists with secure permissions
+	mkdir -p "${HOME}/.ssh"
+	chmod 0700 "${HOME}/.ssh"
+
+	if [ -f "${ssh_rc}" ]; then
+		if grep -q 'SSH_AUTH_SOCK' "${ssh_rc}" 2>/dev/null; then
+			log_info "${ssh_rc}: SSH_AUTH_SOCK handling already configured"
+			return
+		fi
+		log_warn "${ssh_rc} exists, appending SSH agent configuration"
+		echo "" >> "${ssh_rc}"
+	fi
+
+	# shellcheck disable=SC2016
+	cat >> "${ssh_rc}" << 'EOF'
+# shellcheck shell=sh
+# SSH agent forwarding: create symlink to fixed path for tmux compatibility
+# Note: sshd executes this as `/bin/sh ~/.ssh/rc`
+if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+    mkdir -p "$HOME/.ssh"
+    chmod 0700 "$HOME/.ssh"
+    ln -sf "$SSH_AUTH_SOCK" "$HOME/.ssh/agent.sock"
+fi
+EOF
+
+	chmod 0600 "${ssh_rc}"
+	log_info "Created: ${ssh_rc}"
+}
+
+install_shell_config_remote() {
+	local bashrc_d="${HOME}/.bashrc.d"
+	local bashrc="${HOME}/.bashrc"
+
+	log_info "Installing shell configuration (Remote)..."
+	mkdir -p "${bashrc_d}"
+
+	# SSH agent config (Remote: uses fixed symlink path)
+	cat > "${bashrc_d}/21-ssh-agent.sh" << 'EOF'
+#!/usr/bin/env bash
+# SSH agent forwarding (fixed path for tmux compatibility)
+# Symlink is created by ~/.ssh/rc on SSH login
+
+_ssh_agent_sock="$HOME/.ssh/agent.sock"
+if [ -S "$_ssh_agent_sock" ]; then
+    export SSH_AUTH_SOCK="$_ssh_agent_sock"
+fi
+unset _ssh_agent_sock
+EOF
+	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
+
+	# Check if .bashrc sources ~/.bashrc.d/*.sh
+	if ! grep -q 'bashrc\.d' "${bashrc}" 2>/dev/null; then
+		log_info "Adding ${bashrc_d} loader to ${bashrc}..."
+		# shellcheck disable=SC2016
+		cat >> "${bashrc}" << 'EOF'
+
+# Include ~/.bashrc.d/*.sh
+if [ -d "$HOME/.bashrc.d" ]; then
+    for script in "$HOME/.bashrc.d"/*.sh; do
+        # shellcheck source=/dev/null
+        [ -r "$script" ] && . "$script"
+    done
+    unset script
+fi
+EOF
+		log_info "Updated: ${bashrc}"
+	else
+		log_info "${bashrc}: already sources ${bashrc_d}"
+	fi
+}
+
 install_shell_config_wsl2() {
 	local bashrc_d="${HOME}/.bashrc.d"
 
@@ -481,6 +558,8 @@ main_remote() {
 	check_dependencies
 	configure_gpg
 	configure_sshd_remote
+	install_ssh_rc_remote
+	install_shell_config_remote
 	show_remote_setup_instructions
 
 	# Create lock file
@@ -492,7 +571,7 @@ main_remote() {
 	echo " Setup complete!"
 	echo "============================================"
 	echo ""
-	echo "To re-run setup: rm ${LOCK_FILE}"
+	log_info "To re-run setup: rm ${LOCK_FILE}"
 }
 
 main() {
