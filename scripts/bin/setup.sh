@@ -476,7 +476,8 @@ __wait_systemd_user() {
 }
 
 # SSH agent
-export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ssh/agent.sock"
+_BASE_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export SSH_AUTH_SOCK="${_BASE_RUNTIME_DIR%/}/ssh/agent.sock"
 
 if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     log_warn "XDG_RUNTIME_DIR not set, systemd user session not available"
@@ -488,7 +489,7 @@ elif ! systemctl --user is-active --quiet ssh-agent.socket; then
     log_info "       Start with: systemctl --user start ssh-agent.socket"
 fi
 
-unset -f __wait_systemd_user
+unset -f __wait_systemd_user _BASE_RUNTIME_DIR
 EOF
 	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
 
