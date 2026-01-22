@@ -12,6 +12,8 @@ __WSL2_DIR="$(wslpath -u "$(powershell.exe -c '$env:USERPROFILE' | tr -d '\r')")
 # Skip restore if .restore-skip file exists
 if [ -f "${__WSL2_DIR}/.restore-skip" ]; then
 	log_info "Restore skipped: ${__WSL2_DIR}/.restore-skip exists"
+	date '+%Y-%m-%dT%H%M%S%z' > "${HOME}/.dwsl2-restore.lock"
+	log_info "Created restorelock (Restore process skipped)"
 	exit 0
 fi
 
