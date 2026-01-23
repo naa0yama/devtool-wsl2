@@ -1,5 +1,5 @@
 [tools]
-"cargo:dotter" = "latest"
+"cargo:comtrya" = "latest"
 "cargo:topgrade" = "latest"
 aws-sam-cli = { version = "latest", symlink_bins = "true" }
 awscli = { version = "latest", symlink_bins = "true" }
