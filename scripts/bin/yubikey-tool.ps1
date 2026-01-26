@@ -350,6 +350,7 @@ function Initialize-TrayIcon {
 		Write-Log "Restarting agents from tray menu..."
 		Restart-Agents | Out-Null
 		Set-TrayIconState -State "Normal"
+		$script:currentState = "Normal"
 		$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents restarted", [System.Windows.Forms.ToolTipIcon]::Info)
 	})
 	$contextMenu.Items.Add($menuRestart) | Out-Null
@@ -361,6 +362,7 @@ function Initialize-TrayIcon {
 		Write-Log "Stopping agents from tray menu..."
 		Stop-Agents
 		Set-TrayIconState -State "Stopped"
+		$script:currentState = "Stopped"
 		$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents stopped", [System.Windows.Forms.ToolTipIcon]::Info)
 	})
 	$contextMenu.Items.Add($menuStop) | Out-Null
@@ -707,6 +709,9 @@ function Stop-Agents {
 	#>
 
 	Write-Log "Stopping existing GPG processes..."
+
+	# Stop gpg-bridge first
+	Stop-ProcessByName -Name "gpg-bridge"
 
 	# Try official method first: gpg-connect-agent killagent /bye
 	Write-Log "Stopping gpg-agent via 'gpg-connect-agent killagent /bye'..." -Level DEBUG
@@ -1267,6 +1272,11 @@ function Start-PollingMode {
 	$timer.Add_Tick({
 		try {
 			$script:loopCount++
+
+			# Skip polling when agents are stopped
+			if ($script:currentState -eq "Stopped") {
+				return
+			}
 
 			# Cleanup completed jobs periodically
 			if ($script:loopCount % 10 -eq 0) {
