@@ -37,9 +37,6 @@
 .PARAMETER GpgBridgeArgs
 	Arguments to pass to gpg-bridge (default: --extra 127.0.0.1:4321)
 
-.PARAMETER TestMode
-	Mode for manually testing touch detection
-
 .PARAMETER AddStartup
 	Register shortcut to Windows startup (shell:startup)
 
@@ -90,9 +87,6 @@ param(
 
 	[Parameter()]
 	[string]$GpgBridgeArgs = "--extra 127.0.0.1:4321",
-
-	[Parameter()]
-	[switch]$TestMode = $false,
 
 	[Parameter()]
 	[switch]$AddStartup = $false,
@@ -149,19 +143,16 @@ if (-not $GpgPath) {
 	exit 1
 }
 
-# Log file (with date suffix, keep 5 files)
-$LogFileBase = "yubikey-tool"
-$LogFileDate = Get-Date -Format "yyyyMMdd"
-$LogFile = Join-Path $env:TEMP "${LogFileBase}-${LogFileDate}.log"
+# Log file (with date suffix, rotate daily, keep 5 files)
+$script:LogFileBase = "yubikey-tool"
+$script:LogFileDate = Get-Date -Format "yyyyMMdd"
+$script:LogFile = Join-Path $env:TEMP "${script:LogFileBase}-${script:LogFileDate}.log"
 
 # Cleanup old log files (keep only 5)
-$logFiles = Get-ChildItem -Path $env:TEMP -Filter "${LogFileBase}-*.log" -ErrorAction SilentlyContinue |
-	Sort-Object LastWriteTime -Descending
-if ($logFiles.Count -gt 5) {
-	$logFiles | Select-Object -Skip 5 | ForEach-Object {
-		Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue
-	}
-}
+Get-ChildItem -Path $env:TEMP -Filter "${script:LogFileBase}-*.log" -ErrorAction SilentlyContinue |
+	Sort-Object LastWriteTime -Descending |
+	Select-Object -Skip 5 |
+	ForEach-Object { Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue }
 
 #endregion
 
@@ -177,6 +168,19 @@ function Write-Log {
 		[string]$Level = "INFO"
 	)
 
+	# Date-based log rotation (switch to new file at midnight)
+	$currentDate = Get-Date -Format "yyyyMMdd"
+	if ($currentDate -ne $script:LogFileDate) {
+		$script:LogFileDate = $currentDate
+		$script:LogFile = Join-Path $env:TEMP "${script:LogFileBase}-${currentDate}.log"
+
+		# Cleanup old log files (keep only 5)
+		Get-ChildItem -Path $env:TEMP -Filter "${script:LogFileBase}-*.log" -ErrorAction SilentlyContinue |
+			Sort-Object LastWriteTime -Descending |
+			Select-Object -Skip 5 |
+			ForEach-Object { Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue }
+	}
+
 	$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 	$logMessage = "[$timestamp] [$Level] $Message"
 
@@ -189,7 +193,7 @@ function Write-Log {
 	}
 
 	# Output to file
-	Add-Content -Path $LogFile -Value $logMessage -ErrorAction SilentlyContinue
+	Add-Content -Path $script:LogFile -Value $logMessage -ErrorAction SilentlyContinue
 }
 
 function Show-ToastNotification {
@@ -348,10 +352,7 @@ function Initialize-TrayIcon {
 	$menuRestart.Text = "Restart Agents"
 	$menuRestart.Add_Click({
 		Write-Log "Restarting agents from tray menu..."
-		Restart-Agents | Out-Null
-		Set-TrayIconState -State "Normal"
-		$script:currentState = "Normal"
-		$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents restarted", [System.Windows.Forms.ToolTipIcon]::Info)
+		Start-AsyncRestart
 	})
 	$contextMenu.Items.Add($menuRestart) | Out-Null
 
@@ -360,10 +361,7 @@ function Initialize-TrayIcon {
 	$menuStop.Text = "Stop Agents"
 	$menuStop.Add_Click({
 		Write-Log "Stopping agents from tray menu..."
-		Stop-Agents
-		Set-TrayIconState -State "Stopped"
-		$script:currentState = "Stopped"
-		$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents stopped", [System.Windows.Forms.ToolTipIcon]::Info)
+		Start-AsyncStop
 	})
 	$contextMenu.Items.Add($menuStop) | Out-Null
 
@@ -372,8 +370,8 @@ function Initialize-TrayIcon {
 	$menuShowLog.Text = "Show Log"
 	$menuShowLog.Add_Click({
 		Write-Log "Opening log file from tray menu..."
-		if (Test-Path $LogFile) {
-			Start-Process notepad.exe -ArgumentList $LogFile
+		if (Test-Path $script:LogFile) {
+			Invoke-Item $script:LogFile
 		}
 		else {
 			$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Log file not found", [System.Windows.Forms.ToolTipIcon]::Warning)
@@ -389,8 +387,72 @@ function Initialize-TrayIcon {
 	$menuExit.Text = "Exit"
 	$menuExit.Add_Click({
 		Write-Log "Exiting from tray menu..."
-		Stop-Agents
+
+		# Hide icon immediately for visual feedback
 		$script:TrayIcon.Visible = $false
+
+		# Cancel in-progress check process
+		if ($script:gpgCheckProcess) {
+			if (-not $script:gpgCheckProcess.HasExited) {
+				try { $script:gpgCheckProcess.Kill() } catch { }
+			}
+			try { $script:gpgCheckProcess.Dispose() } catch { }
+			$script:gpgCheckProcess = $null
+		}
+
+		# Cancel background restart
+		if ($script:bgRestart) {
+			try { $script:bgRestart.PowerShell.Stop() } catch { }
+			try { $script:bgRestart.PowerShell.Dispose() } catch { }
+			try { $script:bgRestart.Runspace.Close() } catch { }
+			try { $script:bgRestart.Runspace.Dispose() } catch { }
+			$script:bgRestart = $null
+		}
+
+		# Cancel background stop
+		if ($script:bgStop) {
+			try { $script:bgStop.PowerShell.Stop() } catch { }
+			try { $script:bgStop.PowerShell.Dispose() } catch { }
+			try { $script:bgStop.Runspace.Close() } catch { }
+			try { $script:bgStop.Runspace.Dispose() } catch { }
+			$script:bgStop = $null
+		}
+
+		# Graceful shutdown in background runspace (icon is hidden, blocking is acceptable)
+		$exitRunspace = [runspacefactory]::CreateRunspace()
+		$exitRunspace.Open()
+		$exitPs = [powershell]::Create()
+		$exitPs.Runspace = $exitRunspace
+		[void]$exitPs.AddScript({
+			# Stop gpg-bridge
+			Get-Process -Name "gpg-bridge" -ErrorAction SilentlyContinue |
+				Stop-Process -Force -ErrorAction SilentlyContinue
+
+			# killagent
+			try {
+				$psi = New-Object System.Diagnostics.ProcessStartInfo
+				$psi.FileName = "gpg-connect-agent"
+				$psi.Arguments = "killagent /bye"
+				$psi.UseShellExecute = $false
+				$psi.RedirectStandardOutput = $true
+				$psi.RedirectStandardError = $true
+				$psi.CreateNoWindow = $true
+
+				$p = New-Object System.Diagnostics.Process
+				$p.StartInfo = $psi
+				$p.Start() | Out-Null
+				if (-not $p.WaitForExit(5000)) {
+					try { $p.Kill() } catch { }
+				}
+				$p.Dispose()
+			}
+			catch { }
+		})
+		$exitPs.Invoke()
+		$exitPs.Dispose()
+		$exitRunspace.Close()
+		$exitRunspace.Dispose()
+
 		$script:TrayIcon.Dispose()
 		[Environment]::Exit(0)
 	})
@@ -710,6 +772,35 @@ function Stop-Agents {
 
 	Write-Log "Stopping existing GPG processes..."
 
+	# Cancel in-progress check process (if called during polling)
+	if ($script:gpgCheckProcess) {
+		if (-not $script:gpgCheckProcess.HasExited) {
+			try { $script:gpgCheckProcess.Kill() } catch { }
+		}
+		try { $script:gpgCheckProcess.Dispose() } catch { }
+		$script:gpgCheckProcess = $null
+		$script:gpgCheckStartTime = $null
+	}
+
+	# Cancel background restart if running
+	if ($script:bgRestart) {
+		try { $script:bgRestart.PowerShell.Stop() } catch { }
+		try { $script:bgRestart.PowerShell.Dispose() } catch { }
+		try { $script:bgRestart.Runspace.Close() } catch { }
+		try { $script:bgRestart.Runspace.Dispose() } catch { }
+		$script:bgRestart = $null
+		$script:restartInProgress = $false
+	}
+
+	# Cancel background stop if running
+	if ($script:bgStop) {
+		try { $script:bgStop.PowerShell.Stop() } catch { }
+		try { $script:bgStop.PowerShell.Dispose() } catch { }
+		try { $script:bgStop.Runspace.Close() } catch { }
+		try { $script:bgStop.Runspace.Dispose() } catch { }
+		$script:bgStop = $null
+	}
+
 	# Stop gpg-bridge first
 	Stop-ProcessByName -Name "gpg-bridge"
 
@@ -918,42 +1009,6 @@ function Test-StalePipes {
 	return $stalePipes
 }
 
-function Start-GpgAgent {
-	<#
-	.SYNOPSIS
-		Start gpg-agent
-	#>
-
-	Write-Log "Starting gpg-agent..."
-
-	try {
-		# Start via gpg-connect-agent
-		$result = & gpg-connect-agent "/bye" 2>&1
-		if ($LASTEXITCODE -ne 0) {
-			Write-Log "gpg-connect-agent exited abnormally (exit code: $LASTEXITCODE): $result" -Level WARN
-		}
-		else {
-			Write-Log "gpg-agent started: $result" -Level DEBUG
-		}
-
-		# Verify startup
-		Start-Sleep -Milliseconds 500
-		$agentProcess = Get-Process -Name "gpg-agent" -ErrorAction SilentlyContinue
-		if ($agentProcess) {
-			Write-Log "gpg-agent started (PID: $($agentProcess.Id))"
-			return $true
-		}
-		else {
-			Write-Log "Could not verify gpg-agent startup" -Level WARN
-			return $false
-		}
-	}
-	catch {
-		Write-Log "Failed to start gpg-agent: $_" -Level ERROR
-		return $false
-	}
-}
-
 function Start-GpgBridge {
 	<#
 	.SYNOPSIS
@@ -998,92 +1053,231 @@ function Start-GpgBridge {
 	}
 }
 
-function Test-GpgCardStatus {
+function Start-AsyncStop {
 	<#
 	.SYNOPSIS
-		Run gpg --card-status and detect hang or error
-	.OUTPUTS
-		String: "Normal" = completed successfully
-		        "Touch" = hang (waiting for touch)
-		        "NoCard" = card not present or error (exit code 2)
-		        "Error" = other error
+		Non-blocking stop: cancel UI-thread tasks, then run graceful shutdown in background Runspace
 	#>
 
-	$startTime = Get-Date
-	Write-Log "gpg --card-status check started (timeout: ${HangTimeout}ms)" -Level DEBUG
+	Write-Log "Starting async stop..." -Level INFO
 
-	try {
-		# Start as Process (lighter and more reliable than Job)
-		$psi = New-Object System.Diagnostics.ProcessStartInfo
-		$psi.FileName = $GpgPath
-		$psi.Arguments = "--card-status"
-		$psi.UseShellExecute = $false
-		$psi.RedirectStandardOutput = $true
-		$psi.RedirectStandardError = $true
-		$psi.CreateNoWindow = $true
-
-		$process = New-Object System.Diagnostics.Process
-		$process.StartInfo = $psi
-
-		$process.Start() | Out-Null
-
-		# Wait with timeout
-		$completed = $process.WaitForExit($HangTimeout)
-
-		$elapsed = ((Get-Date) - $startTime).TotalMilliseconds
-
-		if ($completed) {
-			# Completed (check exit code)
-			$exitCode = $process.ExitCode
-			# Read both stdout and stderr to prevent buffer deadlock
-			$null = $process.StandardOutput.ReadToEnd()
-			$stderr = $process.StandardError.ReadToEnd()
-			Write-Log "gpg --card-status completed (elapsed: ${elapsed}ms, exit code: $exitCode)" -Level DEBUG
-
-			# Cleanup process
-			$process.Dispose()
-
-			if ($exitCode -eq 0) {
-				return "Normal"
-			}
-			elseif ($exitCode -eq 2) {
-				# Card not present or similar error
-				if ($stderr -match "No such device|card not present|Card not present") {
-					Write-Log "No card detected: $stderr" -Level DEBUG
-					return "NoCard"
-				}
-				return "Error"
-			}
-			else {
-				Write-Log "gpg --card-status failed with exit code $exitCode : $stderr" -Level WARN
-				return "Error"
-			}
+	# Cancel in-progress check process on UI thread
+	if ($script:gpgCheckProcess) {
+		if (-not $script:gpgCheckProcess.HasExited) {
+			try { $script:gpgCheckProcess.Kill() } catch { }
 		}
-		else {
-			# Timeout = hang (waiting for touch)
-			Write-Log "gpg --card-status hang detected! (timeout: ${elapsed}ms)" -Level INFO
-
-			# Force terminate process
-			try {
-				if (-not $process.HasExited) {
-					$process.Kill()
-					$process.WaitForExit(1000) | Out-Null
-				}
-			}
-			catch {
-				Write-Log "Error while terminating process: $_" -Level DEBUG
-			}
-			finally {
-				$process.Dispose()
-			}
-
-			return "Touch"
-		}
+		try { $script:gpgCheckProcess.Dispose() } catch { }
+		$script:gpgCheckProcess = $null
+		$script:gpgCheckStartTime = $null
 	}
-	catch {
-		Write-Log "Error during gpg --card-status execution: $_" -Level ERROR
-		Write-Log "  Error details: $($_.Exception.Message)" -Level ERROR
-		return "Error"
+
+	# Cancel background restart if running
+	if ($script:bgRestart) {
+		try { $script:bgRestart.PowerShell.Stop() } catch { }
+		try { $script:bgRestart.PowerShell.Dispose() } catch { }
+		try { $script:bgRestart.Runspace.Close() } catch { }
+		try { $script:bgRestart.Runspace.Dispose() } catch { }
+		$script:bgRestart = $null
+		$script:restartInProgress = $false
+	}
+
+	# Cancel previous background stop if running
+	if ($script:bgStop) {
+		try { $script:bgStop.PowerShell.Stop() } catch { }
+		try { $script:bgStop.PowerShell.Dispose() } catch { }
+		try { $script:bgStop.Runspace.Close() } catch { }
+		try { $script:bgStop.Runspace.Dispose() } catch { }
+		$script:bgStop = $null
+	}
+
+	# Update state immediately on UI thread
+	Set-TrayIconState -State "Stopped"
+	$script:currentState = "Stopped"
+
+	# Run graceful shutdown in background Runspace
+	$runspace = [runspacefactory]::CreateRunspace()
+	$runspace.Open()
+	$ps = [powershell]::Create()
+	$ps.Runspace = $runspace
+
+	[void]$ps.AddScript({
+		# Stop gpg-bridge
+		Get-Process -Name "gpg-bridge" -ErrorAction SilentlyContinue |
+			Stop-Process -Force -ErrorAction SilentlyContinue
+
+		# killagent via official method
+		try {
+			$psi = New-Object System.Diagnostics.ProcessStartInfo
+			$psi.FileName = "gpg-connect-agent"
+			$psi.Arguments = "killagent /bye"
+			$psi.UseShellExecute = $false
+			$psi.RedirectStandardOutput = $true
+			$psi.RedirectStandardError = $true
+			$psi.CreateNoWindow = $true
+
+			$p = New-Object System.Diagnostics.Process
+			$p.StartInfo = $psi
+			$p.Start() | Out-Null
+			if (-not $p.WaitForExit(5000)) {
+				try { $p.Kill() } catch { }
+			}
+			$p.Dispose()
+		}
+		catch { }
+	})
+
+	$handle = $ps.BeginInvoke()
+
+	$script:bgStop = @{
+		PowerShell = $ps
+		Handle     = $handle
+		Runspace   = $runspace
+	}
+}
+
+function Start-AsyncRestart {
+	<#
+	.SYNOPSIS
+		Non-blocking restart: cancel UI-thread tasks, then run full restart sequence in background Runspace
+	#>
+
+	Write-Log "Starting async restart..." -Level INFO
+
+	# Cancel in-progress check process on UI thread
+	if ($script:gpgCheckProcess) {
+		if (-not $script:gpgCheckProcess.HasExited) {
+			try { $script:gpgCheckProcess.Kill() } catch { }
+		}
+		try { $script:gpgCheckProcess.Dispose() } catch { }
+		$script:gpgCheckProcess = $null
+		$script:gpgCheckStartTime = $null
+	}
+
+	# Cancel background restart if already running
+	if ($script:bgRestart) {
+		try { $script:bgRestart.PowerShell.Stop() } catch { }
+		try { $script:bgRestart.PowerShell.Dispose() } catch { }
+		try { $script:bgRestart.Runspace.Close() } catch { }
+		try { $script:bgRestart.Runspace.Dispose() } catch { }
+		$script:bgRestart = $null
+	}
+
+	# Cancel background stop if running
+	if ($script:bgStop) {
+		try { $script:bgStop.PowerShell.Stop() } catch { }
+		try { $script:bgStop.PowerShell.Dispose() } catch { }
+		try { $script:bgStop.Runspace.Close() } catch { }
+		try { $script:bgStop.Runspace.Dispose() } catch { }
+		$script:bgStop = $null
+	}
+
+	# Update state immediately on UI thread
+	$script:restartInProgress = $true
+	Set-TrayIconState -State "Error"
+	$script:currentState = "Error"
+
+	# Run full restart sequence in background Runspace
+	$runspace = [runspacefactory]::CreateRunspace()
+	$runspace.Open()
+	$ps = [powershell]::Create()
+	$ps.Runspace = $runspace
+
+	[void]$ps.AddScript({
+		param($GpgBridgePath, $GpgBridgeArgs, $GpgPath)
+
+		# Step 1: Stop gpg-bridge
+		Get-Process -Name "gpg-bridge" -ErrorAction SilentlyContinue |
+			Stop-Process -Force -ErrorAction SilentlyContinue
+
+		# Step 2: killagent via official method
+		try {
+			$psi = New-Object System.Diagnostics.ProcessStartInfo
+			$psi.FileName = "gpg-connect-agent"
+			$psi.Arguments = "killagent /bye"
+			$psi.UseShellExecute = $false
+			$psi.RedirectStandardOutput = $true
+			$psi.RedirectStandardError = $true
+			$psi.CreateNoWindow = $true
+
+			$p = New-Object System.Diagnostics.Process
+			$p.StartInfo = $psi
+			$p.Start() | Out-Null
+			if (-not $p.WaitForExit(5000)) {
+				try { $p.Kill() } catch { }
+			}
+			$p.Dispose()
+		}
+		catch { }
+
+		# Step 3: Wait for processes to terminate
+		Start-Sleep -Seconds 2
+
+		# Step 4: Start gpg-agent via gpg-connect-agent /bye
+		try {
+			$psi = New-Object System.Diagnostics.ProcessStartInfo
+			$psi.FileName = "gpg-connect-agent"
+			$psi.Arguments = "/bye"
+			$psi.UseShellExecute = $false
+			$psi.RedirectStandardOutput = $true
+			$psi.RedirectStandardError = $true
+			$psi.CreateNoWindow = $true
+
+			$p = New-Object System.Diagnostics.Process
+			$p.StartInfo = $psi
+			$p.Start() | Out-Null
+			if (-not $p.WaitForExit(30000)) {
+				try { $p.Kill(); $p.WaitForExit(1000) | Out-Null } catch { }
+			}
+			$p.Dispose()
+		}
+		catch { }
+
+		# Step 5: Initialize card access
+		try {
+			$psi = New-Object System.Diagnostics.ProcessStartInfo
+			$psi.FileName = $GpgPath
+			$psi.Arguments = "--card-status"
+			$psi.UseShellExecute = $false
+			$psi.RedirectStandardOutput = $true
+			$psi.RedirectStandardError = $true
+			$psi.CreateNoWindow = $true
+
+			$p = New-Object System.Diagnostics.Process
+			$p.StartInfo = $psi
+			$p.Start() | Out-Null
+			if (-not $p.WaitForExit(60000)) {
+				try { $p.Kill(); $p.WaitForExit(1000) | Out-Null } catch { }
+			}
+			$p.Dispose()
+		}
+		catch { }
+
+		# Step 6: Start gpg-bridge
+		try {
+			$psi = New-Object System.Diagnostics.ProcessStartInfo
+			$psi.FileName = $GpgBridgePath
+			$psi.Arguments = $GpgBridgeArgs
+			$psi.UseShellExecute = $false
+			$psi.CreateNoWindow = $true
+			$psi.RedirectStandardOutput = $false
+			$psi.RedirectStandardError = $false
+
+			$p = New-Object System.Diagnostics.Process
+			$p.StartInfo = $psi
+			$p.Start() | Out-Null
+		}
+		catch { }
+	})
+	[void]$ps.AddArgument($GpgBridgePath)
+	[void]$ps.AddArgument($GpgBridgeArgs)
+	[void]$ps.AddArgument($GpgPath)
+
+	$handle = $ps.BeginInvoke()
+
+	$script:bgRestart = @{
+		PowerShell = $ps
+		Handle     = $handle
+		Runspace   = $runspace
 	}
 }
 
@@ -1091,65 +1285,12 @@ function Test-GpgCardStatus {
 
 #region Main Processing
 
-function Test-ManualGpgCardStatus {
-	<#
-	.SYNOPSIS
-		Manually test gpg --card-status hang detection
-	#>
-
-	Write-Host "========================================" -ForegroundColor Cyan
-	Write-Host "gpg --card-status Manual Test Mode" -ForegroundColor Cyan
-	Write-Host "========================================" -ForegroundColor Cyan
-	Write-Host ""
-	Write-Host "Please perform a GPG operation (e.g., git commit -S)"
-	Write-Host "Press Enter immediately when YubiKey is waiting for touch"
-	Write-Host ""
-
-	Read-Host "Press Enter when ready"
-
-	Write-Host ""
-	Write-Host "Checking gpg --card-status..." -ForegroundColor Yellow
-
-	$status = Test-GpgCardStatus
-
-	Write-Host ""
-	switch ($status) {
-		"Touch" {
-			Write-Host "[OK] Hang detected! Waiting for touch" -ForegroundColor Green
-			Write-Host "  Testing Toast notification..." -ForegroundColor Yellow
-			Show-ToastNotification -Title "gpg-agent" -Message "Please touch or PIN your YubiKey"
-			Write-Host "  Check if the notification appeared" -ForegroundColor Yellow
-		}
-		"NoCard" {
-			Write-Host "[INFO] No card detected" -ForegroundColor Yellow
-			Write-Host "  YubiKey is not inserted or not recognized" -ForegroundColor Yellow
-		}
-		"Normal" {
-			Write-Host "[OK] Card status check completed normally" -ForegroundColor Green
-			Write-Host "  YubiKey is connected and responding" -ForegroundColor Green
-		}
-		default {
-			Write-Host "[NG] Error or unexpected state: $status" -ForegroundColor Red
-			Write-Host ""
-			Write-Host "Possible causes:" -ForegroundColor Yellow
-			Write-Host "  1. YubiKey touch policy is disabled" -ForegroundColor Yellow
-			Write-Host "     -> Check with: ykman openpgp info" -ForegroundColor Yellow
-			Write-Host "  2. Timeout setting is too short" -ForegroundColor Yellow
-			Write-Host "     -> Try: -HangTimeout 2000" -ForegroundColor Yellow
-			Write-Host "  3. GPG operation already completed" -ForegroundColor Yellow
-			Write-Host "     -> Try again with better timing" -ForegroundColor Yellow
-		}
-	}
-
-	Write-Host ""
-}
-
 function Update-CardState {
 	<#
 	.SYNOPSIS
 		Process GPG card status and update state machine
 	.PARAMETER Status
-		Card status from Test-GpgCardStatus
+		Card status: "Normal", "Touch", "NoCard", "Error"
 	#>
 	param(
 		[Parameter(Mandatory)]
@@ -1180,19 +1321,9 @@ function Update-CardState {
 		}
 		"Error" {
 			if ($script:currentState -ne "Error") {
-				Write-Log "GPG error detected, restarting agents..." -Level WARN
-				Set-TrayIconState -State "Error"
-				$script:currentState = "Error"
+				Write-Log "GPG error detected, initiating auto-restart..." -Level WARN
 				$script:touchDetectedTime = $null
-
-				try {
-					Restart-Agents | Out-Null
-					Write-Log "Agents restarted automatically"
-					$script:TrayIcon.ShowBalloonTip(3000, "YubiKey Tool", "Agents restarted due to error", [System.Windows.Forms.ToolTipIcon]::Warning)
-				}
-				catch {
-					Write-Log "Failed to restart agents: $_" -Level ERROR
-				}
+				Start-AsyncRestart
 			}
 		}
 		default {
@@ -1232,7 +1363,7 @@ function Update-CardState {
 function Start-PollingMode {
 	<#
 	.SYNOPSIS
-		Polling-based touch detection with system tray icon
+		Polling-based touch detection with system tray icon (non-blocking)
 	#>
 
 	Write-Log "Starting polling mode"
@@ -1241,6 +1372,13 @@ function Start-PollingMode {
 	$script:currentState = "Normal"
 	$script:touchDetectedTime = $null
 	$script:loopCount = 0
+
+	# Non-blocking polling state
+	$script:gpgCheckProcess = $null
+	$script:gpgCheckStartTime = $null
+	$script:bgRestart = $null
+	$script:bgStop = $null
+	$script:restartInProgress = $false
 
 	# Suppress unhandled exception dialogs
 	try {
@@ -1273,18 +1411,104 @@ function Start-PollingMode {
 		try {
 			$script:loopCount++
 
-			# Skip polling when agents are stopped
-			if ($script:currentState -eq "Stopped") {
+			# 1. Check background restart completion (non-blocking)
+			if ($script:bgRestart -and $script:bgRestart.Handle.IsCompleted) {
+				try { $script:bgRestart.PowerShell.EndInvoke($script:bgRestart.Handle) } catch { }
+				try { $script:bgRestart.PowerShell.Dispose() } catch { }
+				try { $script:bgRestart.Runspace.Close() } catch { }
+				try { $script:bgRestart.Runspace.Dispose() } catch { }
+				$script:bgRestart = $null
+				$script:restartInProgress = $false
+				Set-TrayIconState -State "Normal"
+				$script:currentState = "Normal"
+				Write-Log "Agents restarted (async)" -Level INFO
+				$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents restarted", [System.Windows.Forms.ToolTipIcon]::Info)
+			}
+
+			# Check background stop completion (non-blocking)
+			if ($script:bgStop -and $script:bgStop.Handle.IsCompleted) {
+				try { $script:bgStop.PowerShell.EndInvoke($script:bgStop.Handle) } catch { }
+				try { $script:bgStop.PowerShell.Dispose() } catch { }
+				try { $script:bgStop.Runspace.Close() } catch { }
+				try { $script:bgStop.Runspace.Dispose() } catch { }
+				$script:bgStop = $null
+				Write-Log "Agents stopped (async)" -Level INFO
+				$script:TrayIcon.ShowBalloonTip(2000, "YubiKey Tool", "Agents stopped", [System.Windows.Forms.ToolTipIcon]::Info)
+			}
+
+			# 2. Skip polling when agents are stopped or restart is in progress
+			if ($script:currentState -eq "Stopped" -or $script:restartInProgress) {
 				return
 			}
 
-			# Cleanup completed jobs periodically
-			if ($script:loopCount % 10 -eq 0) {
-				Get-Job | Where-Object { $_.State -eq 'Completed' } | Remove-Job -Force -ErrorAction SilentlyContinue
-			}
+			# 3. Check existing gpg --card-status process
+			if ($script:gpgCheckProcess) {
+				if ($script:gpgCheckProcess.HasExited) {
+					# Process completed — read results
+					$exitCode = $script:gpgCheckProcess.ExitCode
+					$stderr = $script:gpgCheckProcess.StandardError.ReadToEnd()
+					$null = $script:gpgCheckProcess.StandardOutput.ReadToEnd()
+					$elapsed = [int]((Get-Date) - $script:gpgCheckStartTime).TotalMilliseconds
+					$script:gpgCheckProcess.Dispose()
+					$script:gpgCheckProcess = $null
+					$script:gpgCheckStartTime = $null
 
-			$status = try { Test-GpgCardStatus } catch { Write-Log "Error during check: $_" -Level ERROR; "Error" }
-			Update-CardState -Status $status
+					Write-Log "gpg --card-status completed (elapsed: ${elapsed}ms, exit: $exitCode)" -Level DEBUG
+
+					if ($exitCode -eq 0) {
+						Update-CardState -Status "Normal"
+					}
+					elseif ($exitCode -eq 2 -and $stderr -match "No such device|card not present|Card not present") {
+						Write-Log "No card detected: $($stderr.Trim())" -Level DEBUG
+						Update-CardState -Status "NoCard"
+					}
+					else {
+						Write-Log "gpg --card-status failed: exit=$exitCode stderr=$($stderr.Trim())" -Level WARN
+						Update-CardState -Status "Error"
+					}
+				}
+				elseif (((Get-Date) - $script:gpgCheckStartTime).TotalMilliseconds -gt $HangTimeout) {
+					# Timeout — touch waiting detected
+					Write-Log "gpg --card-status hang detected (timeout: ${HangTimeout}ms)" -Level INFO
+
+					try {
+						$script:gpgCheckProcess.Kill()
+						$script:gpgCheckProcess.WaitForExit(1000) | Out-Null
+					}
+					catch { }
+					$script:gpgCheckProcess.Dispose()
+					$script:gpgCheckProcess = $null
+					$script:gpgCheckStartTime = $null
+
+					Update-CardState -Status "Touch"
+				}
+				# else: still running, wait for next tick
+			}
+			else {
+				# 4. Start new gpg --card-status check (non-blocking)
+				try {
+					$psi = New-Object System.Diagnostics.ProcessStartInfo
+					$psi.FileName = $GpgPath
+					$psi.Arguments = "--card-status"
+					$psi.UseShellExecute = $false
+					$psi.RedirectStandardOutput = $true
+					$psi.RedirectStandardError = $true
+					$psi.CreateNoWindow = $true
+
+					$proc = New-Object System.Diagnostics.Process
+					$proc.StartInfo = $psi
+					$proc.Start() | Out-Null
+
+					$script:gpgCheckProcess = $proc
+					$script:gpgCheckStartTime = Get-Date
+
+					Write-Log "gpg --card-status started (PID: $($proc.Id))" -Level DEBUG
+				}
+				catch {
+					Write-Log "Failed to start gpg --card-status: $_" -Level ERROR
+					Update-CardState -Status "Error"
+				}
+			}
 		}
 		catch [System.Management.Automation.PipelineStoppedException] {
 			[System.Windows.Forms.Application]::Exit()
@@ -1313,6 +1537,33 @@ function Start-PollingMode {
 
 		Write-Log "Stopping polling mode..."
 
+		# Cleanup check process
+		if ($script:gpgCheckProcess) {
+			if (-not $script:gpgCheckProcess.HasExited) {
+				try { $script:gpgCheckProcess.Kill() } catch { }
+			}
+			try { $script:gpgCheckProcess.Dispose() } catch { }
+			$script:gpgCheckProcess = $null
+		}
+
+		# Cleanup background restart
+		if ($script:bgRestart) {
+			try { $script:bgRestart.PowerShell.Stop() } catch { }
+			try { $script:bgRestart.PowerShell.Dispose() } catch { }
+			try { $script:bgRestart.Runspace.Close() } catch { }
+			try { $script:bgRestart.Runspace.Dispose() } catch { }
+			$script:bgRestart = $null
+		}
+
+		# Cleanup background stop
+		if ($script:bgStop) {
+			try { $script:bgStop.PowerShell.Stop() } catch { }
+			try { $script:bgStop.PowerShell.Dispose() } catch { }
+			try { $script:bgStop.Runspace.Close() } catch { }
+			try { $script:bgStop.Runspace.Dispose() } catch { }
+			$script:bgStop = $null
+		}
+
 		# Unregister exit event handler
 		if ($exitEventJob) {
 			Unregister-Event -SourceIdentifier PowerShell.Exiting -ErrorAction SilentlyContinue
@@ -1321,19 +1572,6 @@ function Start-PollingMode {
 
 		# Cleanup tray icon
 		Remove-TrayIcon
-
-		# Cleanup all remaining jobs
-		try {
-			$jobs = Get-Job -ErrorAction SilentlyContinue
-			if ($jobs) {
-				Write-Log "Cleaning up remaining jobs: $($jobs.Count)"
-				$jobs | Stop-Job -ErrorAction SilentlyContinue
-				$jobs | Remove-Job -Force -ErrorAction SilentlyContinue
-			}
-		}
-		catch {
-			Write-Log "Error during job cleanup: $_" -Level WARN
-		}
 
 		Write-Log "Polling mode stopped"
 	}
@@ -1347,12 +1585,6 @@ function Start-PollingMode {
 Write-Log "========================================"
 Write-Log "YubiKey Tool for Windows"
 Write-Log "========================================"
-
-# TestMode: Manual test
-if ($TestMode) {
-	Test-ManualGpgCardStatus
-	exit 0
-}
 
 # AddStartup: Register to startup
 if ($AddStartup) {
