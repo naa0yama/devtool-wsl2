@@ -352,6 +352,7 @@ function Initialize-TrayIcon {
 	$menuRestart.Text = "Restart Agents"
 	$menuRestart.Add_Click({
 		Write-Log "Restarting agents from tray menu..."
+		$script:autoRestartCount = 0
 		Start-AsyncRestart
 	})
 	$contextMenu.Items.Add($menuRestart) | Out-Null
@@ -1173,6 +1174,8 @@ function Start-AsyncRestart {
 
 	# Update state immediately on UI thread
 	$script:restartInProgress = $true
+	$script:gpgReady = $false
+	$script:gpgNotReadySince = $null
 	Set-TrayIconState -State "Error"
 	$script:currentState = "Error"
 
@@ -1321,9 +1324,19 @@ function Update-CardState {
 		}
 		"Error" {
 			if ($script:currentState -ne "Error") {
-				Write-Log "GPG error detected, initiating auto-restart..." -Level WARN
-				$script:touchDetectedTime = $null
-				Start-AsyncRestart
+				if (-not $script:gpgReady -and $script:autoRestartCount -ge 3) {
+					Write-Log "GPG error detected but max auto-restarts reached. Manual restart required." -Level ERROR
+					$script:touchDetectedTime = $null
+					Set-TrayIconState -State "Error"
+					$script:currentState = "Error"
+					$script:TrayIcon.Text = "YubiKey Tool - GPG Error (Manual restart required)"
+				}
+				else {
+					if (-not $script:gpgReady) { $script:autoRestartCount++ }
+					Write-Log "GPG error detected, initiating auto-restart..." -Level WARN
+					$script:touchDetectedTime = $null
+					Start-AsyncRestart
+				}
 			}
 		}
 		default {
@@ -1379,6 +1392,9 @@ function Start-PollingMode {
 	$script:bgRestart = $null
 	$script:bgStop = $null
 	$script:restartInProgress = $false
+	$script:gpgReady = $false
+	$script:gpgNotReadySince = $null
+	$script:autoRestartCount = 0
 
 	# Suppress unhandled exception dialogs
 	try {
@@ -1456,10 +1472,22 @@ function Start-PollingMode {
 					Write-Log "gpg --card-status completed (elapsed: ${elapsed}ms, exit: $exitCode)" -Level DEBUG
 
 					if ($exitCode -eq 0) {
+						if (-not $script:gpgReady) {
+							Write-Log "GPG is now ready (first successful response)" -Level INFO
+							$script:gpgReady = $true
+							$script:gpgNotReadySince = $null
+							$script:autoRestartCount = 0
+						}
 						Update-CardState -Status "Normal"
 					}
 					elseif ($exitCode -eq 2 -and $stderr -match "No such device|card not present|Card not present") {
 						Write-Log "No card detected: $($stderr.Trim())" -Level DEBUG
+						if (-not $script:gpgReady) {
+							Write-Log "GPG is now ready (card not present but GPG responding)" -Level INFO
+							$script:gpgReady = $true
+							$script:gpgNotReadySince = $null
+							$script:autoRestartCount = 0
+						}
 						Update-CardState -Status "NoCard"
 					}
 					else {
@@ -1468,9 +1496,7 @@ function Start-PollingMode {
 					}
 				}
 				elseif (((Get-Date) - $script:gpgCheckStartTime).TotalMilliseconds -gt $HangTimeout) {
-					# Timeout — touch waiting detected
 					Write-Log "gpg --card-status hang detected (timeout: ${HangTimeout}ms)" -Level INFO
-
 					try {
 						$script:gpgCheckProcess.Kill()
 						$script:gpgCheckProcess.WaitForExit(1000) | Out-Null
@@ -1480,7 +1506,39 @@ function Start-PollingMode {
 					$script:gpgCheckProcess = $null
 					$script:gpgCheckStartTime = $null
 
-					Update-CardState -Status "Touch"
+					if ($script:gpgReady) {
+						# GPG was previously working — genuine touch waiting
+						Update-CardState -Status "Touch"
+					}
+					else {
+						# GPG has never responded — still initializing, not a touch
+						if (-not $script:gpgNotReadySince) {
+							$script:gpgNotReadySince = Get-Date
+						}
+						$notReadyElapsed = [int]((Get-Date) - $script:gpgNotReadySince).TotalSeconds
+						Write-Log "GPG still initializing (not ready for ${notReadyElapsed}s)" -Level DEBUG
+
+						if ($script:currentState -ne "Error") {
+							Set-TrayIconState -State "Error"
+							$script:currentState = "Error"
+							$script:TrayIcon.Text = "YubiKey Tool - GPG Initializing..."
+						}
+
+						# Auto-recovery after 60s of continuous failure
+						if ($notReadyElapsed -gt 60) {
+							if ($script:autoRestartCount -lt 3) {
+								$script:autoRestartCount++
+								$script:gpgNotReadySince = $null
+								Write-Log "GPG not ready for 60s, triggering auto-restart ($($script:autoRestartCount)/3)..." -Level WARN
+								Start-AsyncRestart
+							}
+							else {
+								Write-Log "GPG not ready after 3 auto-restarts, manual restart required" -Level ERROR
+								$script:gpgNotReadySince = $null
+								$script:TrayIcon.Text = "YubiKey Tool - GPG Error (Manual restart required)"
+							}
+						}
+					}
 				}
 				# else: still running, wait for next tick
 			}
