@@ -181,7 +181,8 @@ wsl -d dwsl2-8718ff1 NO_FISH=true bash -l
 
 ```
 
-> [!TIP] Bash を永続起動にする
+> [!TIP]
+> Bash を永続起動にする
 > 本イメージの中身は Fish, Bash どちらも設定済みのため Bash のみを永続的に利用したい場合は `~/.bashrc` の末尾にある下記をコメントアウトすれば fish を起動しません
 >
 > ```bash
