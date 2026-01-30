@@ -42,9 +42,10 @@ Ref: [Registry | mise-en-place](https://mise.jdx.dev/registry.html?filter=usage#
 
 ## ssh-agent, gpg-agent との統合
 
-2026/01/11 の更新から WSL2 の初回起動時に Windows 11 側に `npiperelay.exe`, `gpg-bridge.exe`, `yubikey-tool.ps1` のツールを自動ダウンロードし `%USERPROFILE%/.local/bin` に配置するようになりました。 `yubikey-tool.ps1` は自動起動にも設定され `gpg-agent`, `gpg-bridge` の自動起動、タッチ/PIN入力の通知を実施するタスクトレイアプリケーションです。
-
-これにより WSL2 上でも手軽に GPG 鍵を利用でき、 `gpg-bridge` を使うことで SSH 先でも GPG 署名できるようになりました。
+> [!Important]
+> 2026/01/11 の更新から WSL2 の初回起動時に Windows 11 側に `npiperelay.exe`, `gpg-bridge.exe`, `yubikey-tool.ps1` のツールを自動ダウンロードし `%USERPROFILE%/.local/bin` に配置するようになりました。 `yubikey-tool.ps1` は自動起動にも設定され `gpg-agent`, `gpg-bridge` の自動起動、タッチ/PIN入力の通知を実施するタスクトレイアプリケーションです。
+>
+> これにより WSL2 上でも手軽に GPG 鍵を利用でき、 `gpg-bridge` を使うことで SSH 先でも GPG 署名できるようになりました。
 
 > [!TIP]
 > **Windows 11 の .ssh/config 例**
@@ -181,7 +182,8 @@ wsl -d dwsl2-8718ff1 NO_FISH=true bash -l
 
 ```
 
-> [!TIP] Bash を永続起動にする
+> [!TIP]
+> Bash を永続起動にする
 > 本イメージの中身は Fish, Bash どちらも設定済みのため Bash のみを永続的に利用したい場合は `~/.bashrc` の末尾にある下記をコメントアウトすれば fish を起動しません
 >
 > ```bash
