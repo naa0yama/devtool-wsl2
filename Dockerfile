@@ -185,7 +185,7 @@ RUN <<EOF
 echo "**** WSL settings ****"
 set -euxo pipefail
 
-cat <<- '_DOC_' > /etc/wsl.conf
+cat <<- _DOC_ > /etc/wsl.conf
 [automount]
 enabled=true
 mountFsTab=true
