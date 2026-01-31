@@ -185,7 +185,7 @@ RUN <<EOF
 echo "**** WSL settings ****"
 set -euxo pipefail
 
-cat <<- _DOC_ > /etc/wsl.conf
+cat <<- '_DOC_' > /etc/wsl.conf
 [automount]
 enabled=true
 mountFsTab=true
@@ -215,23 +215,23 @@ RUN <<EOF
 echo "**** add '~/.bashrc.d/devtool/*.sh' to ~/.bashrc ****"
 set -euxo pipefail
 
-cat <<- _DOC_ >> ~/.bashrc
+cat <<- '_DOC_' >> ~/.bashrc
 
 # Include ~/.bashrc.d/ when using login shell
 if [ -d ~/.bashrc.d ]; then
 	for script in ~/.bashrc.d/*.sh; do
-		[ -r "\$script" ] && . "\$script"
+		[ -r "$script" ] && . "$script"
 	done
 
 	for script in ~/.bashrc.d/devtool/*.sh; do
-		[ -r "\$script" ] && . "\$script"
+		[ -r "$script" ] && . "$script"
 	done
 	unset script
 fi
 
 # Switch to fish for interactive
 # Note: REMOTE_CONTAINERS_IPC is set during Dev Containers userEnvProbe (undocumented)
-if [[ ! -v REMOTE_CONTAINERS_IPC ]] && [[ -z "$\NO_FISH" ]] && command -v fish &> /dev/null; then
+if [[ ! -v REMOTE_CONTAINERS_IPC ]] && [[ -z "$NO_FISH" ]] && command -v fish &> /dev/null; then
     exec fish
 fi
 
@@ -255,7 +255,7 @@ mkdir -p ~/.config/fish/functions
 curl -sfSL -o ~/.config/fish/functions/fisher.fish \
 	https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
 
-cat <<- _DOC_ > ~/.config/fish/config.fish
+cat <<- '_DOC_' > ~/.config/fish/config.fish
 #!/usr/bin/env fish
 
 # mise
@@ -263,7 +263,7 @@ cat <<- _DOC_ > ~/.config/fish/config.fish
 
 _DOC_
 
-cat <<- _DOC_ > ~/.config/fish/functions/fish_prompt.fish
+cat <<- '_DOC_' > ~/.config/fish/functions/fish_prompt.fish
 #!/usr/bin/env fish
 
 function fish_prompt
