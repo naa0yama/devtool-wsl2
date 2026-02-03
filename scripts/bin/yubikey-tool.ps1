@@ -53,7 +53,7 @@
 	.\yubikey-tool.ps1 -Stop
 
 .EXAMPLE
-	.\yubikey-tool.ps1 -GpgBridgeArgs "--extra 127.0.0.1:4321 --ssh \\.\pipe\openssh-ssh-agent"
+	.\yubikey-tool.ps1 -GpgBridgeArgs "--extra 127.0.0.1:4321"
 
 .EXAMPLE
 	.\yubikey-tool.ps1 -AddStartup
@@ -86,7 +86,7 @@ param(
 	[string]$GpgBridgePath = (Join-Path $env:USERPROFILE ".local\bin\gpg-bridge.exe"),
 
 	[Parameter()]
-	[string]$GpgBridgeArgs = "--extra 127.0.0.1:4321 --ssh \\.\pipe\openssh-ssh-agent",
+	[string]$GpgBridgeArgs = "--extra 127.0.0.1:4321",
 
 	[Parameter()]
 	[switch]$AddStartup = $false,
