@@ -3,15 +3,29 @@
 aws-sam-cli = { version = "latest", symlink_bins = "true" }
 awscli = { version = "latest", symlink_bins = "true" }
 chezmoi = "latest"
-claude-code = { version = "latest", bin = "claude", platforms = """[linux-arm64]url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/{version}/linux-arm64/claude"[linux-x64]url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/{version}/linux-x64/claude"[macos-arm64]url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/{version}/darwin-arm64/claude"[macos-x64]url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/{version}/darwin-x64/claude"[windows-x64]bin = "claude.exe"url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/{version}/win32-x64/claude.exe"""", version_list_url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/latest" }
 dprint = "latest"
 dua = "latest"
 fzf = "latest"
 ghq = "latest"
+github-cli = "latest"
 gitleaks = "latest"
 lefthook = "latest"
+node = "24"
 ripgrep = "latest"
 rust = "latest"
+shellcheck = "latest"
 starship = "latest"
 tmux = "3.6a"
 usage = "latest"
+
+[tasks.install-claude-code]
+description = "Install Claude Code to ~/.local/bin via official installer"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+case "$(uname -s)" in
+	Linux|Darwin) ;;
+	*) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+esac
+curl -fsSL https://claude.ai/install.sh | bash
+"""

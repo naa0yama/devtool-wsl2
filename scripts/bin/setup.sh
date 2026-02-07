@@ -449,13 +449,33 @@ EOF
 
 install_shell_config_wsl2() {
 	local bashrc_d="${HOME}/.bashrc.d"
+	local environment_d="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d"
 
 	log_info "Installing shell configuration..."
 	mkdir -p "${bashrc_d}"
 
-	# SSH agent config (WSL2: uses systemd socket)
+	# SSH_AUTH_SOCK via environment.d (applies to all sessions including non-interactive)
+	mkdir -p "${environment_d}"
+	cat > "${environment_d}/21-ssh-agent.conf" << 'EOF'
+SSH_AUTH_SOCK=${XDG_RUNTIME_DIR}/ssh/agent.sock
+EOF
+	log_info "Created: ${environment_d}/21-ssh-agent.conf"
+
+	# Apply immediately if systemd user session is running
+	# environment.d is only read at session start, so set-environment is needed for the current session
+	if systemctl --user is-system-running &>/dev/null; then
+		systemctl --user set-environment "SSH_AUTH_SOCK=${XDG_RUNTIME_DIR}/ssh/agent.sock"
+		log_info "SSH_AUTH_SOCK: applied to current systemd user session"
+	else
+		log_warn "systemd user session not running, SSH_AUTH_SOCK will be set on next login"
+	fi
+
+	# SSH agent health check (WSL2: uses systemd socket)
+	# Note: SSH_AUTH_SOCK is set via ~/.config/environment.d/21-ssh-agent.conf
 	cat > "${bashrc_d}/21-ssh-agent.sh" << 'EOF'
 #!/usr/bin/env bash
+# SSH agent health check for interactive shells
+# SSH_AUTH_SOCK is set via ~/.config/environment.d/21-ssh-agent.conf
 
 # Logger
 log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
@@ -475,10 +495,6 @@ __wait_systemd_user() {
     return 1
 }
 
-# SSH agent
-_BASE_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-export SSH_AUTH_SOCK="${_BASE_RUNTIME_DIR%/}/ssh/agent.sock"
-
 if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     log_warn "XDG_RUNTIME_DIR not set, systemd user session not available"
 elif ! __wait_systemd_user; then
@@ -489,7 +505,7 @@ elif ! systemctl --user is-active --quiet ssh-agent.socket; then
     log_info "       Start with: systemctl --user start ssh-agent.socket"
 fi
 
-unset -f __wait_systemd_user _BASE_RUNTIME_DIR
+unset -f __wait_systemd_user
 EOF
 	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
 
