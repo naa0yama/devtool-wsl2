@@ -594,6 +594,7 @@ Description=Create VS Code Server environment setup (SSH_AUTH_SOCK)
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
 ExecStart=${helper_script}
 EOF
 	log_info "Created: ${systemd_dst}/vscode-server-env.service"
