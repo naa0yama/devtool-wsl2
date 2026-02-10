@@ -55,6 +55,27 @@ fixpath() {
 	tr -d '\r' | tr '\\' '/'
 }
 
+# Write content to file only when content has changed (hash-based idempotency)
+# Returns 0 if written, 1 if unchanged
+write_if_changed() {
+	local dest="$1"
+	local content="$2"
+	local new_hash existing_hash
+
+	new_hash="$(printf '%s' "${content}" | sha256sum | cut -d' ' -f1)"
+
+	if [ -f "${dest}" ]; then
+		existing_hash="$(sha256sum "${dest}" | cut -d' ' -f1)"
+		if [ "${new_hash}" = "${existing_hash}" ]; then
+			return 1
+		fi
+	fi
+
+	mkdir -p "$(dirname "${dest}")"
+	printf '%s' "${content}" > "${dest}"
+	return 0
+}
+
 # -----------------------------------------------------------------------------
 # Dependencies check
 # -----------------------------------------------------------------------------
@@ -228,20 +249,26 @@ configure_gpg() {
 	fi
 
 	# Mask local gpg-agent services to prevent conflicts
-	systemctl --user mask gpg-agent.service gpg-agent.socket \
-		gpg-agent-ssh.socket gpg-agent-extra.socket gpg-agent-browser.socket \
-		2>/dev/null || true
-	log_info "gpg-agent systemd units: masked"
+	if systemctl --user is-enabled gpg-agent.service 2>/dev/null | grep -q '^masked$'; then
+		log_info "gpg-agent systemd units: already masked"
+	else
+		systemctl --user mask gpg-agent.service gpg-agent.socket \
+			gpg-agent-ssh.socket gpg-agent-extra.socket gpg-agent-browser.socket \
+			2>/dev/null || true
+		log_info "gpg-agent systemd units: masked"
+	fi
 }
 
 install_systemd_units_wsl2() {
 	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+	local needs_reload=false
 
 	log_info "Installing systemd user units (WSL2)..."
 	mkdir -p "${systemd_dst}"
 
 	# ssh-agent.socket
-	cat > "${systemd_dst}/ssh-agent.socket" << 'EOF'
+	local ssh_agent_socket_content
+	ssh_agent_socket_content="$(cat << 'UNIT_EOF'
 [Unit]
 Description=SSH Agent Socket (relay to Windows OpenSSH Agent)
 Documentation=man:ssh-agent(1)
@@ -254,13 +281,22 @@ Accept=true
 
 [Install]
 WantedBy=sockets.target
-EOF
+UNIT_EOF
+)"
+	if write_if_changed "${systemd_dst}/ssh-agent.socket" "${ssh_agent_socket_content}"; then
+		log_info "Updated: ${systemd_dst}/ssh-agent.socket"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/ssh-agent.socket"
+	fi
 
 	# ssh-agent@.service
-	cat > "${systemd_dst}/ssh-agent@.service" << EOF
+	local ssh_agent_service_content
+	ssh_agent_service_content="$(cat << EOF
 [Unit]
 Description=SSH Agent Relay to Windows OpenSSH Agent (connection %i)
 Documentation=man:ssh-agent(1)
+CollectMode=inactive-or-failed
 Requires=ssh-agent.socket
 
 [Service]
@@ -270,10 +306,17 @@ StandardInput=socket
 StandardOutput=socket
 StandardError=journal
 EOF
+)"
+	if write_if_changed "${systemd_dst}/ssh-agent@.service" "${ssh_agent_service_content}"; then
+		log_info "Updated: ${systemd_dst}/ssh-agent@.service"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/ssh-agent@.service"
+	fi
 
 	# gpg-agent.socket
-	rm -f "${systemd_dst}/gpg-agent.socket"
-	cat > "${systemd_dst}/gpg-agent.socket" << 'EOF'
+	local gpg_agent_socket_content
+	gpg_agent_socket_content="$(cat << 'UNIT_EOF'
 [Unit]
 Description=GPG Agent Socket (relay to Windows gpg-agent)
 Documentation=man:gpg-agent(1)
@@ -287,13 +330,22 @@ Accept=true
 
 [Install]
 WantedBy=sockets.target
-EOF
+UNIT_EOF
+)"
+	if write_if_changed "${systemd_dst}/gpg-agent.socket" "${gpg_agent_socket_content}"; then
+		log_info "Updated: ${systemd_dst}/gpg-agent.socket"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/gpg-agent.socket"
+	fi
 
 	# gpg-agent@.service
-	cat > "${systemd_dst}/gpg-agent@.service" << EOF
+	local gpg_agent_service_content
+	gpg_agent_service_content="$(cat << EOF
 [Unit]
 Description=GPG Agent Relay to Windows gpg-agent (connection %i)
 Documentation=man:gpg-agent(1)
+CollectMode=inactive-or-failed
 Requires=gpg-agent.socket
 
 [Service]
@@ -303,9 +355,32 @@ StandardInput=socket
 StandardOutput=socket
 StandardError=journal
 EOF
+)"
+	if write_if_changed "${systemd_dst}/gpg-agent@.service" "${gpg_agent_service_content}"; then
+		log_info "Updated: ${systemd_dst}/gpg-agent@.service"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/gpg-agent@.service"
+	fi
 
-	systemctl --user daemon-reload
-	systemctl --user enable --now ssh-agent.socket gpg-agent.socket
+	if [ "${needs_reload}" = true ]; then
+		systemctl --user daemon-reload
+		log_info "systemd: daemon-reload"
+	fi
+
+	if ! systemctl --user is-active --quiet ssh-agent.socket; then
+		systemctl --user enable --now ssh-agent.socket
+		log_info "ssh-agent.socket: enabled"
+	else
+		log_info "ssh-agent.socket: already active"
+	fi
+
+	if ! systemctl --user is-active --quiet gpg-agent.socket; then
+		systemctl --user enable --now gpg-agent.socket
+		log_info "gpg-agent.socket: enabled"
+	else
+		log_info "gpg-agent.socket: already active"
+	fi
 
 	log_info "systemd units: installed"
 }
@@ -413,7 +488,8 @@ install_shell_config_remote() {
 	mkdir -p "${bashrc_d}"
 
 	# SSH agent config (Remote: uses fixed symlink path)
-	cat > "${bashrc_d}/21-ssh-agent.sh" << 'EOF'
+	local ssh_agent_sh_content
+	ssh_agent_sh_content="$(cat << 'SHELL_EOF'
 #!/usr/bin/env bash
 # SSH agent forwarding (fixed path for tmux compatibility)
 # Symlink is created by ~/.ssh/rc on SSH login
@@ -423,8 +499,13 @@ if [ -S "$_ssh_agent_sock" ]; then
     export SSH_AUTH_SOCK="$_ssh_agent_sock"
 fi
 unset _ssh_agent_sock
-EOF
-	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
+SHELL_EOF
+)"
+	if write_if_changed "${bashrc_d}/21-ssh-agent.sh" "${ssh_agent_sh_content}"; then
+		log_info "Updated: ${bashrc_d}/21-ssh-agent.sh"
+	else
+		log_info "Unchanged: ${bashrc_d}/21-ssh-agent.sh"
+	fi
 
 	# Check if .bashrc sources ~/.bashrc.d/*.sh
 	if ! grep -q 'bashrc\.d' "${bashrc}" 2>/dev/null; then
@@ -469,29 +550,27 @@ install_shell_config_wsl2() {
 	fi
 
 	# SSH agent: set SSH_AUTH_SOCK and health check (WSL2: uses systemd socket)
-	cat > "${bashrc_d}/21-ssh-agent.sh" << 'EOF'
+	local ssh_agent_sh_content
+	ssh_agent_sh_content="$(cat << 'SHELL_EOF'
 #!/usr/bin/env bash
 # SSH agent: set SSH_AUTH_SOCK and health check for interactive shells
-
-# Set SSH_AUTH_SOCK for interactive shells
-_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-export SSH_AUTH_SOCK="${_runtime_dir%/}/ssh/agent.sock"
-unset _runtime_dir
 
 # Logger
 log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
 log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
 log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
-# Wait for systemd user session to be ready (max 5 seconds)
+# Wait for systemd user session to be ready (max 2 seconds)
 # This handles WSL startup race condition where bash starts before D-Bus is ready
+# Accepts both "running" and "degraded" (failed units exist but system is functional)
 __wait_systemd_user() {
-    local i
-    for i in 1 2 3 4 5; do
-        if systemctl --user is-system-running &>/dev/null; then
-            return 0
-        fi
-        sleep 1
+    local i state
+    for i in 1 2 3 4; do
+        state="$(systemctl --user is-system-running 2>/dev/null || true)"
+        case "${state}" in
+            running|degraded) return 0 ;;
+        esac
+        sleep 0.5
     done
     return 1
 }
@@ -510,12 +589,19 @@ elif ! systemctl --user is-active --quiet ssh-agent.socket; then
     log_info "       Start with: systemctl --user start ssh-agent.socket"
 fi
 
-unset -f __wait_systemd_user _BASE_RUNTIME_DIR
-EOF
-	log_info "Created: ${bashrc_d}/21-ssh-agent.sh"
+unset -f __wait_systemd_user
+unset _BASE_RUNTIME_DIR
+SHELL_EOF
+)"
+	if write_if_changed "${bashrc_d}/21-ssh-agent.sh" "${ssh_agent_sh_content}"; then
+		log_info "Updated: ${bashrc_d}/21-ssh-agent.sh"
+	else
+		log_info "Unchanged: ${bashrc_d}/21-ssh-agent.sh"
+	fi
 
 	# GPG agent config
-	cat > "${bashrc_d}/22-gpg-agent.sh" << 'EOF'
+	local gpg_agent_sh_content
+	gpg_agent_sh_content="$(cat << 'SHELL_EOF'
 #!/usr/bin/env bash
 
 # Logger
@@ -532,8 +618,13 @@ if systemctl --user is-system-running &>/dev/null; then
         log_info "       Start with: systemctl --user start gpg-agent.socket"
     fi
 fi
-EOF
-	log_info "Created: ${bashrc_d}/22-gpg-agent.sh"
+SHELL_EOF
+)"
+	if write_if_changed "${bashrc_d}/22-gpg-agent.sh" "${gpg_agent_sh_content}"; then
+		log_info "Updated: ${bashrc_d}/22-gpg-agent.sh"
+	else
+		log_info "Unchanged: ${bashrc_d}/22-gpg-agent.sh"
+	fi
 }
 
 install_vscode_server_env_wsl2() {
@@ -542,6 +633,7 @@ install_vscode_server_env_wsl2() {
 	local libexec_dir="${HOME}/.local/libexec/devtool-wsl2"
 	local helper_script="${libexec_dir}/vscode-server-env.sh"
 	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+	local needs_reload=false
 	local uid
 	uid="$(id -u)"
 
@@ -549,8 +641,8 @@ install_vscode_server_env_wsl2() {
 
 	# Create initial server-env-setup
 	# https://code.visualstudio.com/docs/remote/wsl#_advanced-environment-setup-script
-	mkdir -p "${vscode_dir}"
-	cat > "${env_setup}" << EOF
+	local env_setup_content
+	env_setup_content="$(cat << EOF
 #!/usr/bin/env sh
 # Generated by devtool-wsl2 setup.sh
 # Sourced by VS Code Server before startup.
@@ -558,11 +650,17 @@ install_vscode_server_env_wsl2() {
 export SSH_AUTH_SOCK="/run/user/${uid}/ssh/agent.sock"
 export PATH="\${HOME}/.local/share/mise/shims:\${HOME}/.local/bin:\${PATH}"
 EOF
-	log_info "Created: ${env_setup}"
+)"
+	mkdir -p "${vscode_dir}"
+	if write_if_changed "${env_setup}" "${env_setup_content}"; then
+		log_info "Updated: ${env_setup}"
+	else
+		log_info "Unchanged: ${env_setup}"
+	fi
 
 	# Create helper script for systemd service
-	mkdir -p "${libexec_dir}"
-	cat > "${helper_script}" << 'HELPER_EOF'
+	local helper_script_content
+	helper_script_content="$(cat << 'HELPER_EOF'
 #!/usr/bin/env sh
 # https://code.visualstudio.com/docs/remote/wsl#_advanced-environment-setup-script
 vscode_dir="${HOME}/.vscode-server"
@@ -571,13 +669,19 @@ if [ -d "${vscode_dir}" ]; then
 		> "${vscode_dir}/server-env-setup"
 fi
 HELPER_EOF
-	chmod +x "${helper_script}"
-	log_info "Created: ${helper_script}"
+)"
+	if write_if_changed "${helper_script}" "${helper_script_content}"; then
+		chmod +x "${helper_script}"
+		log_info "Updated: ${helper_script}"
+	else
+		log_info "Unchanged: ${helper_script}"
+	fi
 
 	# Install systemd path + service units
 	mkdir -p "${systemd_dst}"
 
-	cat > "${systemd_dst}/vscode-server-env.path" << 'EOF'
+	local vscode_path_content
+	vscode_path_content="$(cat << 'UNIT_EOF'
 [Unit]
 Description=Watch for VS Code Server directory
 
@@ -586,10 +690,17 @@ PathExists=%h/.vscode-server
 
 [Install]
 WantedBy=paths.target
-EOF
-	log_info "Created: ${systemd_dst}/vscode-server-env.path"
+UNIT_EOF
+)"
+	if write_if_changed "${systemd_dst}/vscode-server-env.path" "${vscode_path_content}"; then
+		log_info "Updated: ${systemd_dst}/vscode-server-env.path"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/vscode-server-env.path"
+	fi
 
-	cat > "${systemd_dst}/vscode-server-env.service" << EOF
+	local vscode_service_content
+	vscode_service_content="$(cat << EOF
 [Unit]
 Description=Create VS Code Server environment setup (SSH_AUTH_SOCK, PATH)
 
@@ -598,11 +709,25 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=${helper_script}
 EOF
-	log_info "Created: ${systemd_dst}/vscode-server-env.service"
+)"
+	if write_if_changed "${systemd_dst}/vscode-server-env.service" "${vscode_service_content}"; then
+		log_info "Updated: ${systemd_dst}/vscode-server-env.service"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/vscode-server-env.service"
+	fi
 
-	systemctl --user daemon-reload
-	systemctl --user enable --now vscode-server-env.path
-	log_info "vscode-server-env.path: enabled"
+	if [ "${needs_reload}" = true ]; then
+		systemctl --user daemon-reload
+		log_info "systemd: daemon-reload"
+	fi
+
+	if ! systemctl --user is-active --quiet vscode-server-env.path; then
+		systemctl --user enable --now vscode-server-env.path
+		log_info "vscode-server-env.path: enabled"
+	else
+		log_info "vscode-server-env.path: already active"
+	fi
 }
 
 # -----------------------------------------------------------------------------
