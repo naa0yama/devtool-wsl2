@@ -232,7 +232,7 @@ fi
 # Switch to fish for interactive
 # Note: REMOTE_CONTAINERS_IPC is set during Dev Containers userEnvProbe (undocumented)
 if [[ ! -v REMOTE_CONTAINERS_IPC ]] && [[ -z "$NO_FISH" ]] && command -v fish &> /dev/null; then
-    exec fish
+    exec fish --login
 fi
 
 _DOC_

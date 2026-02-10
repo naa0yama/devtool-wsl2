@@ -23,7 +23,6 @@ WSL2 の開発環境を自動構築するセット\
 | [aws-cli](https://github.com/aws/aws-cli/)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)            | ![GitHub last commit](https://img.shields.io/github/last-commit/aws/aws-cli)            |
 | [aws-sam-cli](https://github.com/aws/aws-sam-cli)        | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-sam-cli)        | ![GitHub last commit](https://img.shields.io/github/last-commit/aws/aws-sam-cli)        |
 | [claude-code](https://github.com/anthropics/claude-code) | ![GitHub Tag](https://img.shields.io/github/v/tag/anthropics/claude-code) | ![GitHub last commit](https://img.shields.io/github/last-commit/anthropics/claude-code) |
-| [dotter](https://github.com/SuperCuber/dotter)           | ![GitHub Tag](https://img.shields.io/github/v/tag/SuperCuber/dotter)      | ![GitHub last commit](https://img.shields.io/github/last-commit/SuperCuber/dotter)      |
 | [dprint](https://github.com/dprint/dprint)               | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)          | ![GitHub last commit](https://img.shields.io/github/last-commit/dprint/dprint)          |
 | [dua-cli](https://github.com/Byron/dua-cli)              | ![GitHub Tag](https://img.shields.io/github/v/tag/Byron/dua-cli)          | ![GitHub last commit](https://img.shields.io/github/last-commit/Byron/dua-cli)          |
 | [fzf](https://github.com/junegunn/fzf)                   | ![GitHub Tag](https://img.shields.io/github/v/tag/junegunn/fzf)           | ![GitHub last commit](https://img.shields.io/github/last-commit/junegunn/fzf)           |
@@ -190,7 +189,7 @@ wsl -d dwsl2-8718ff1 NO_FISH=true bash -l
 > # Switch to fish for interactive
 > # Note: REMOTE_CONTAINERS_IPC is set during Dev Containers userEnvProbe (undocumented)
 > if [[ ! -v REMOTE_CONTAINERS_IPC ]] && [[ -z "$NO_FISH" ]] && command -v fish &> /dev/null; then
->     exec fish
+>     exec fish --login
 > fi
 > 
 > ```
