@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# commit-msg hook: Project-specific Conventional Commits validation
+set -euo pipefail
+
+commit_msg_file="$1"
+
+# Read the first non-comment, non-empty line
+first_line="$(sed '/^#/d;/^$/d' "${commit_msg_file}" | head -n1)"
+
+# Allow empty (will be caught by git itself)
+if [[ -z "${first_line}" ]]; then
+	exit 0
+fi
+
+# Merge commits are allowed as-is
+if grep -qE '^Merge ' <<< "${first_line}"; then
+	exit 0
+fi
+
+# Conventional Commits pattern
+commit_regex='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\-]+\))?: .+$'
+
+if ! echo "${first_line}" | grep -qE "${commit_regex}"; then
+	echo "コミットメッセージが Conventional Commits 形式に準拠していません" >&2
+	echo "" >&2
+	echo "正しい形式:" >&2
+	echo "  <type>: <日本語の説明>" >&2
+	echo "  <type>(<scope>): <日本語の説明>" >&2
+	echo "" >&2
+	echo "使用可能なtype:" >&2
+	echo "  feat:     新機能" >&2
+	echo "  fix:      バグ修正" >&2
+	echo "  docs:     ドキュメントのみの変更" >&2
+	echo "  style:    フォーマット変更(コードの動作に影響しない)" >&2
+	echo "  refactor: リファクタリング" >&2
+	echo "  perf:     パフォーマンス改善" >&2
+	echo "  test:     テストの追加・修正" >&2
+	echo "  build:    ビルドシステムや外部依存の変更" >&2
+	echo "  ci:       CI設定ファイルやスクリプトの変更" >&2
+	echo "  chore:    その他の変更(ソースやテストの変更を含まない)" >&2
+	echo "  revert:   以前のコミットの取り消し" >&2
+	echo "" >&2
+	echo "例:" >&2
+	echo "  feat: ユーザー認証機能を追加" >&2
+	echo "  fix(auth): ログイン時のエラーを修正" >&2
+	echo "  chore: Dockerfile の修正" >&2
+	echo "" >&2
+	echo "現在のメッセージ:" >&2
+	echo "  ${first_line}" >&2
+	echo "" >&2
+	exit 1
+fi
+
+# Verify colon + space after type
+if ! echo "${first_line}" | grep -qE '^[a-z]+(\([a-zA-Z0-9_\-]+\))?: .+$'; then
+	echo "typeの後には「: 」(コロン + 半角スペース)が必要です" >&2
+	echo "" >&2
+	echo "現在のメッセージ:" >&2
+	echo "  ${first_line}" >&2
+	exit 1
+fi
+
+exit 0
