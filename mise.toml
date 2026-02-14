@@ -18,6 +18,44 @@ starship = "latest"
 tmux = "3.6a"
 usage = "latest"
 
+[tasks.pre-commit]
+description = "Run pre-commit checks"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+staged_files="$(git diff --name-only --diff-filter=d --staged)"
+
+# dprint fmt
+if echo "${staged_files}" | grep -qE '\.(json|jsonc|md|toml|yml|yaml)$'; then
+	dprint fmt --staged
+fi
+
+# docker build
+if echo "${staged_files}" | grep -qE '^Dockerfile$'; then
+	docker build --tag tmp --file Dockerfile .
+fi
+'''
+
+[tasks.pre-push]
+description = "Run pre-push checks"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+staged_files="$(git diff --name-only --diff-filter=d --staged)"
+
+# dprint fmt
+if echo "${staged_files}" | grep -qE '\.(json|jsonc|md|toml|yml|yaml)$'; then
+	dprint fmt --staged
+fi
+
+# docker build
+if echo "${staged_files}" | grep -qE '^Dockerfile$'; then
+	docker build --tag tmp --file Dockerfile .
+fi
+'''
+
 [tasks.install-claude-code]
 description = "Install Claude Code to ~/.local/bin via official installer"
 run = """

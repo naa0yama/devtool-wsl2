@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v mise &>/dev/null; then
+	echo "mise が見つかりません。インストールしてください: https://mise.jdx.dev" >&2
+	exit 1
+fi
+
+mise run pre-commit
