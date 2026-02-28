@@ -83,6 +83,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	lsof \
 	mtr \
 	nano \
+	pass \
 	pv \
 	rsync \
 	socat \
