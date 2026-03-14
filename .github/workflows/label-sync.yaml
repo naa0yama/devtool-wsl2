@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Label Sync
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/labels.json"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write # Required to create/update repository labels
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: .github/labels.json
+          persist-credentials: false
+
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const desired = JSON.parse(fs.readFileSync('.github/labels.json', 'utf8'));
+
+            const existing = await github.paginate(github.rest.issues.listLabelsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const existingMap = new Map(existing.map(l => [l.name, l]));
+
+            for (const label of desired) {
+              const current = existingMap.get(label.name);
+              const params = {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: label.name,
+                color: label.color,
+                description: label.description || '',
+              };
+
+              if (!current) {
+                await github.rest.issues.createLabel(params);
+                core.info(`Created: ${label.name}`);
+              } else if (
+                current.color !== label.color ||
+                (current.description || '') !== (label.description || '')
+              ) {
+                await github.rest.issues.updateLabel(params);
+                core.info(`Updated: ${label.name}`);
+              } else {
+                core.info(`Unchanged: ${label.name}`);
+              }
+            }
