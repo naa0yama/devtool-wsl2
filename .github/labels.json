@@ -1,0 +1,377 @@
+[
+	{
+		"name": "enhancement",
+		"color": "a2eeef",
+		"description": "New feature or request"
+	},
+	{
+		"name": "bug",
+		"color": "d73a4a",
+		"description": "Something isn't working"
+	},
+	{
+		"name": "documentation",
+		"color": "0075ca",
+		"description": "Improvements or additions to documentation"
+	},
+	{
+		"name": "ignore-for-release",
+		"color": "ededed",
+		"description": "Exclude from release notes"
+	},
+	{
+		"name": "core",
+		"color": "e11d48",
+		"description": "Changes to core application code"
+	},
+	{
+		"name": "github_actions",
+		"color": "ffd412",
+		"description": "Changes to GitHub Actions workflows"
+	},
+	{
+		"name": "tests",
+		"color": "257759",
+		"description": "Changes to test files"
+	},
+	{
+		"name": "develop",
+		"color": "bfd4f2",
+		"description": "Development branch changes"
+	},
+	{
+		"name": "security",
+		"color": "ee0701",
+		"description": "Vulnerability disclosure or security fix"
+	},
+	{
+		"name": "good first issue",
+		"color": "7057ff",
+		"description": "Good for newcomers"
+	},
+	{
+		"name": "help wanted",
+		"color": "008672",
+		"description": "Extra attention is needed"
+	},
+	{
+		"name": "duplicate",
+		"color": "cfd3d7",
+		"description": "This issue or pull request already exists"
+	},
+	{
+		"name": "wontfix",
+		"color": "ffffff",
+		"description": "This will not be worked on"
+	},
+	{
+		"name": "invalid",
+		"color": "e4e669",
+		"description": "This doesn't seem right"
+	},
+	{
+		"name": "question",
+		"color": "d876e3",
+		"description": "Further information is requested"
+	},
+	{
+		"name": "tagpr",
+		"color": "5319e7",
+		"description": "Created by tagpr for release management"
+	},
+	{
+		"name": "minor",
+		"color": "fbca04",
+		"description": "Bump minor version"
+	},
+	{
+		"name": "major",
+		"color": "b60205",
+		"description": "Bump major version"
+	},
+	{
+		"name": "renovate",
+		"color": "027fa0",
+		"description": "Dependency update by Renovate"
+	},
+	{
+		"name": "datasource:crate",
+		"color": "1e7de8",
+		"description": "Source: crates.io"
+	},
+	{
+		"name": "datasource:docker",
+		"color": "1e7de8",
+		"description": "Source: Docker Hub"
+	},
+	{
+		"name": "datasource:github-releases",
+		"color": "1e7de8",
+		"description": "Source: GitHub Releases"
+	},
+	{
+		"name": "datasource:github-tags",
+		"color": "1e7de8",
+		"description": "Source: GitHub Tags"
+	},
+	{
+		"name": "depType:",
+		"color": "28a745",
+		"description": "Dependency type: unspecified"
+	},
+	{
+		"name": "depType:action",
+		"color": "28a745",
+		"description": "Dependency type: GitHub Actions"
+	},
+	{
+		"name": "depType:dependencies",
+		"color": "28a745",
+		"description": "Dependency type: production"
+	},
+	{
+		"name": "depType:dev-dependencies",
+		"color": "28a745",
+		"description": "Dependency type: development"
+	},
+	{
+		"name": "depType:dockerfile-automerge",
+		"color": "28a745",
+		"description": "Dependency type: Dockerfile (automerge)"
+	},
+	{
+		"name": "depType:final",
+		"color": "28a745",
+		"description": "Dependency type: Dockerfile final stage"
+	},
+	{
+		"name": "manager:cargo",
+		"color": "8b5cf6",
+		"description": "Manager: Cargo"
+	},
+	{
+		"name": "manager:dockerfile",
+		"color": "8b5cf6",
+		"description": "Manager: Dockerfile"
+	},
+	{
+		"name": "manager:github-actions",
+		"color": "8b5cf6",
+		"description": "Manager: GitHub Actions"
+	},
+	{
+		"name": "manager:mise",
+		"color": "8b5cf6",
+		"description": "Manager: mise"
+	},
+	{
+		"name": "manager:regex",
+		"color": "8b5cf6",
+		"description": "Manager: regex"
+	},
+	{
+		"name": "managers:dockerfile",
+		"color": "8b5cf6",
+		"description": "Manager: Dockerfile (legacy)"
+	},
+	{
+		"name": "update-major",
+		"color": "f97316",
+		"description": "Update type: major"
+	},
+	{
+		"name": "update-minor",
+		"color": "f97316",
+		"description": "Update type: minor"
+	},
+	{
+		"name": "update-patch",
+		"color": "f97316",
+		"description": "Update type: patch"
+	},
+	{
+		"name": "update-pin",
+		"color": "f97316",
+		"description": "Update type: pin"
+	},
+	{
+		"name": "versioning:cargo",
+		"color": "14b8a6",
+		"description": "Versioning: Cargo"
+	},
+	{
+		"name": "versioning:docker",
+		"color": "14b8a6",
+		"description": "Versioning: Docker"
+	},
+	{
+		"name": "versioning:semver",
+		"color": "14b8a6",
+		"description": "Versioning: semver"
+	},
+	{
+		"name": "versioning:semver-coerced",
+		"color": "14b8a6",
+		"description": "Versioning: semver (coerced)"
+	},
+	{
+		"name": "tagpr:major",
+		"color": "5319e7",
+		"description": "Bump major version (tagpr auto-label)"
+	},
+	{
+		"name": "tagpr:minor",
+		"color": "5319e7",
+		"description": "Bump minor version (tagpr auto-label)"
+	},
+	{
+		"name": "datasource:",
+		"color": "1e7de8",
+		"description": "Source: unspecified"
+	},
+	{
+		"name": "datasource:pypi",
+		"color": "1e7de8",
+		"description": "Source: PyPI"
+	},
+	{
+		"name": "datasource:npm",
+		"color": "1e7de8",
+		"description": "Source: npm"
+	},
+	{
+		"name": "datasource:git-refs",
+		"color": "1e7de8",
+		"description": "Source: Git refs"
+	},
+	{
+		"name": "datasource:git-tags",
+		"color": "1e7de8",
+		"description": "Source: Git tags"
+	},
+	{
+		"name": "depType:build-system.requires",
+		"color": "28a745",
+		"description": "Dependency type: build system requires"
+	},
+	{
+		"name": "depType:dev",
+		"color": "28a745",
+		"description": "Dependency type: dev (Python)"
+	},
+	{
+		"name": "depType:devDependencies",
+		"color": "28a745",
+		"description": "Dependency type: devDependencies (npm)"
+	},
+	{
+		"name": "depType:docs",
+		"color": "28a745",
+		"description": "Dependency type: documentation"
+	},
+	{
+		"name": "depType:linting",
+		"color": "28a745",
+		"description": "Dependency type: linting"
+	},
+	{
+		"name": "depType:repository",
+		"color": "28a745",
+		"description": "Dependency type: repository"
+	},
+	{
+		"name": "depType:stage",
+		"color": "28a745",
+		"description": "Dependency type: Dockerfile stage"
+	},
+	{
+		"name": "depType:syntax",
+		"color": "28a745",
+		"description": "Dependency type: Dockerfile syntax"
+	},
+	{
+		"name": "depType:tests",
+		"color": "28a745",
+		"description": "Dependency type: tests"
+	},
+	{
+		"name": "manager:",
+		"color": "8b5cf6",
+		"description": "Manager: unspecified"
+	},
+	{
+		"name": "manager:asdf",
+		"color": "8b5cf6",
+		"description": "Manager: asdf"
+	},
+	{
+		"name": "manager:npm",
+		"color": "8b5cf6",
+		"description": "Manager: npm"
+	},
+	{
+		"name": "manager:pep621",
+		"color": "8b5cf6",
+		"description": "Manager: PEP 621"
+	},
+	{
+		"name": "manager:poetry",
+		"color": "8b5cf6",
+		"description": "Manager: Poetry"
+	},
+	{
+		"name": "manager:pre-commit",
+		"color": "8b5cf6",
+		"description": "Manager: pre-commit"
+	},
+	{
+		"name": "update-",
+		"color": "f97316",
+		"description": "Update type: unspecified"
+	},
+	{
+		"name": "update-digest",
+		"color": "f97316",
+		"description": "Update type: digest"
+	},
+	{
+		"name": "update-lockFileMaintenance",
+		"color": "f97316",
+		"description": "Update type: lockfile maintenance"
+	},
+	{
+		"name": "update-pinDigest",
+		"color": "f97316",
+		"description": "Update type: pin digest"
+	},
+	{
+		"name": "versioning:",
+		"color": "14b8a6",
+		"description": "Versioning: unspecified"
+	},
+	{
+		"name": "versioning:git",
+		"color": "14b8a6",
+		"description": "Versioning: Git"
+	},
+	{
+		"name": "versioning:npm",
+		"color": "14b8a6",
+		"description": "Versioning: npm"
+	},
+	{
+		"name": "versioning:pep440",
+		"color": "14b8a6",
+		"description": "Versioning: PEP 440"
+	},
+	{
+		"name": "versioning:poetry",
+		"color": "14b8a6",
+		"description": "Versioning: Poetry"
+	},
+	{
+		"name": "versioning:ubuntu",
+		"color": "14b8a6",
+		"description": "Versioning: Ubuntu"
+	}
+]
