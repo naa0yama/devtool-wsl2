@@ -21,15 +21,23 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM HUP
 EXCLUDE_DIRS=(
+	# Home-level caches and tool data
 	".asdf"
 	".bashrc.d/devtool"
 	".cache"
 	".docker"
+	".dotnet"
 	".local/share/mise"
 	".local/state/mise"
-	".dotnet"
 	".vscode-remote-containers"
 	".vscode-server"
+
+	# Build artifacts and caches
+	"__pycache__"
+	".cargo"
+	".gradle"
+	"dist"
+	"target"
 )
 
 EXCLUDE_ARGS=()
