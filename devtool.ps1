@@ -388,6 +388,47 @@ function Import-WSL {
 	}
 }
 
+function Set-WslConfig {
+	$wslConfigPath = "$env:USERPROFILE\.wslconfig"
+	$section = "[wsl2]"
+	$sectionPattern = "^\s*\[wsl2\]\s*$"
+	$key = "defaultVhdSize"
+	# 100GiB = 107374182400 bytes
+	$value = "107374182400"
+
+	if (-not (Test-Path $wslConfigPath)) {
+		Write-Log "Creating $wslConfigPath with $key=$value"
+		Set-Content -Path $wslConfigPath -Value @($section, "$key=$value") -Encoding UTF8
+		return
+	}
+
+	if (Select-String -Path $wslConfigPath -Pattern "^\s*$key\s*=" -Quiet) {
+		Write-Log "$key is already set in $wslConfigPath, skipping"
+		return
+	}
+
+	$lines = @(Get-Content -Path $wslConfigPath)
+	$sectionIndex = $null
+	for ($i = 0; $i -lt $lines.Count; $i++) {
+		if ($lines[$i] -match $sectionPattern) {
+			$sectionIndex = $i
+			break
+		}
+	}
+
+	if ($null -ne $sectionIndex) {
+		$newLines = @($lines[0..$sectionIndex]) + @("$key=$value")
+		if ($sectionIndex + 1 -lt $lines.Count) {
+			$newLines += $lines[($sectionIndex + 1)..($lines.Count - 1)]
+		}
+		Set-Content -Path $wslConfigPath -Value $newLines -Encoding UTF8
+	} else {
+		Add-Content -Path $wslConfigPath -Value @("", $section, "$key=$value")
+	}
+
+	Write-Log "Added $key=$value to $wslConfigPath"
+}
+
 function Create-Dir {
 	param (
 		[string]$wslPath,
@@ -480,6 +521,8 @@ function Main {
 		Write-Log "//`tskipBackupAndRestore`t$skipBackupAndRestore"
 		Write-Log "//`tImportForce`t`t$ImportForce"
 		Write-Log "//"
+
+		Set-WslConfig
 
 		Create-Dir $wslPath $downloadPath
 
