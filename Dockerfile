@@ -154,6 +154,38 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	type -p fish
 
 RUN <<EOF
+set -euxo pipefail
+echo "**** Install Docker cleanup timer ****"
+
+cat <<- '_DOC_' > /etc/systemd/system/docker-cleanup.service
+[Unit]
+Description=Docker system cleanup (prune unused images and build cache)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker system prune --all --force
+_DOC_
+
+cat <<- '_DOC_' > /etc/systemd/system/docker-cleanup.timer
+[Unit]
+Description=Docker system cleanup (every 6 hours)
+
+[Timer]
+OnCalendar=*-*-* 0/6:00:00
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target
+_DOC_
+
+systemctl enable docker-cleanup.timer
+
+EOF
+
+RUN <<EOF
 echo "**** systemctl mask gpg-agent* ****"
 set -euxo pipefail
 
