@@ -730,6 +730,65 @@ EOF
 	fi
 }
 
+install_cargo_sweep_timer_wsl2() {
+	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+	local needs_reload=false
+
+	log_info "Installing cargo-sweep systemd user timer..."
+
+	local cargo_sweep_service_content
+	cargo_sweep_service_content="$(cat << 'UNIT_EOF'
+[Unit]
+Description=Cargo sweep (remove build artifacts older than 1 day)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/mise/shims/cargo-sweep --time 1 --recursive %h/gits
+UNIT_EOF
+)"
+	if write_if_changed "${systemd_dst}/cargo-sweep.service" "${cargo_sweep_service_content}"; then
+		log_info "Updated: ${systemd_dst}/cargo-sweep.service"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/cargo-sweep.service"
+	fi
+
+	local cargo_sweep_timer_content
+	cargo_sweep_timer_content="$(cat << 'UNIT_EOF'
+[Unit]
+Description=Cargo sweep (every 6 hours)
+
+[Timer]
+OnCalendar=*-*-* 0/6:00:00
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target
+UNIT_EOF
+)"
+	if write_if_changed "${systemd_dst}/cargo-sweep.timer" "${cargo_sweep_timer_content}"; then
+		log_info "Updated: ${systemd_dst}/cargo-sweep.timer"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/cargo-sweep.timer"
+	fi
+
+	if [ "${needs_reload}" = true ]; then
+		systemctl --user daemon-reload
+		log_info "systemd: daemon-reload"
+	fi
+
+	if ! systemctl --user is-active --quiet cargo-sweep.timer; then
+		systemctl --user enable --now cargo-sweep.timer
+		log_info "cargo-sweep.timer: enabled"
+	else
+		log_info "cargo-sweep.timer: already active"
+	fi
+
+	log_info "cargo-sweep timer: installed"
+}
+
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
@@ -752,6 +811,7 @@ main_wsl2() {
 	install_systemd_units_wsl2
 	install_shell_config_wsl2
 	install_vscode_server_env_wsl2
+	install_cargo_sweep_timer_wsl2
 
 	# Create lock file
 	mkdir -p "$(dirname "${LOCK_FILE}")"
