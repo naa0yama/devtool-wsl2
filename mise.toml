@@ -1,6 +1,6 @@
 [tools]
+"cargo:cargo-sweep" = "latest"
 "cargo:topgrade" = "latest"
-aws-sam-cli = { version = "latest", symlink_bins = "true" }
 awscli = { version = "latest", symlink_bins = "true" }
 chezmoi = "latest"
 dprint = "latest"
