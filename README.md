@@ -21,7 +21,6 @@ WSL2 の開発環境を自動構築するセット\
 | mise Tools                                               | Latest release                                                            | Latest commit                                                                           |
 | :------------------------------------------------------- | :------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------- |
 | [aws-cli](https://github.com/aws/aws-cli/)               | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-cli)            | ![GitHub last commit](https://img.shields.io/github/last-commit/aws/aws-cli)            |
-| [aws-sam-cli](https://github.com/aws/aws-sam-cli)        | ![GitHub Tag](https://img.shields.io/github/v/tag/aws/aws-sam-cli)        | ![GitHub last commit](https://img.shields.io/github/last-commit/aws/aws-sam-cli)        |
 | [claude-code](https://github.com/anthropics/claude-code) | ![GitHub Tag](https://img.shields.io/github/v/tag/anthropics/claude-code) | ![GitHub last commit](https://img.shields.io/github/last-commit/anthropics/claude-code) |
 | [dprint](https://github.com/dprint/dprint)               | ![GitHub Tag](https://img.shields.io/github/v/tag/dprint/dprint)          | ![GitHub last commit](https://img.shields.io/github/last-commit/dprint/dprint)          |
 | [dua-cli](https://github.com/Byron/dua-cli)              | ![GitHub Tag](https://img.shields.io/github/v/tag/Byron/dua-cli)          | ![GitHub last commit](https://img.shields.io/github/last-commit/Byron/dua-cli)          |
@@ -48,7 +47,7 @@ Ref: [Registry | mise-en-place](https://mise.jdx.dev/registry.html?filter=usage#
 
 > [!TIP]
 > **Windows 11 の .ssh/config 例**
-> 
+>
 > Remote SSH 先の uid (`id -u` の結果)が 1000 の場合下記を設定します
 >
 > ```text
@@ -62,7 +61,7 @@ Ref: [Registry | mise-en-place](https://mise.jdx.dev/registry.html?filter=usage#
 
 > [!TIP]
 > **Remote SSH 先のセットアップ**
-> 
+>
 > Remote 先でも gpg-agent の設定が必要です。 setup.sh にまとめてあるためこれを実行します。
 > このスクリプトは以下を実行します:
 >
@@ -169,8 +168,7 @@ wsl --unregister dwsl2-8718ff1
 
 ### Fish ではなく Bash を起動する場合
 
-デフォルトではユーザーフレンドリーのために `login shell` -> `~/.bashrc` -> `exec fish` のような起動順序で fish shell が立ち上がります。が、 POSIX 準拠 SHELL ではないため GenAI などで生成したスクリプトは上手く機能しない可能性があります。その場合 Bash を起動するには、下記の方法を用意しています。`NO_FISH` 変数が定義済みの場合 `~/.bashrc` で `exec fish` を実行しないようにしている。  
-
+デフォルトではユーザーフレンドリーのために `login shell` -> `~/.bashrc` -> `exec fish` のような起動順序で fish shell が立ち上がります。が、 POSIX 準拠 SHELL ではないため GenAI などで生成したスクリプトは上手く機能しない可能性があります。その場合 Bash を起動するには、下記の方法を用意しています。`NO_FISH` 変数が定義済みの場合 `~/.bashrc` で `exec fish` を実行しないようにしている。
 
 ```powershell
 # デフォルト WSL2 にしている場合
@@ -178,7 +176,6 @@ wsl NO_FISH=true bash -l
 
 # ディストリビューションを指定する場合
 wsl -d dwsl2-8718ff1 NO_FISH=true bash -l
-
 ```
 
 > [!TIP]
@@ -191,5 +188,4 @@ wsl -d dwsl2-8718ff1 NO_FISH=true bash -l
 > if [[ ! -v REMOTE_CONTAINERS_IPC ]] && [[ -z "$NO_FISH" ]] && command -v fish &> /dev/null; then
 >     exec fish --login
 > fi
-> 
 > ```
