@@ -101,7 +101,7 @@ jobs:
 
       - name: Cleanup pre-releases
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true }}
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |+
@@ -163,7 +163,7 @@ jobs:
           fi
 
       - name: Create Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true }}
         with:
           name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
