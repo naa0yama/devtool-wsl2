@@ -542,7 +542,7 @@ function Main {
 
 			Write-Log "Tool tips"
 			Write-Log "	* WSL list   wsl -l -v"
-			Write-Log "	* WSL exec   wsl -d dwsl2-$tag_name exec bash -l"
+			Write-Log "	* WSL exec   wsl -d dwsl2-$tag_name --cd ~ exec bash -l"
 			Write-Log "	* WSL remove wsl --unregister dwsl2-$tag_name"
 		} else {
 			Write-Log "`n`nHash verification failed. Aborting combination process." -ForegroundColor Red
