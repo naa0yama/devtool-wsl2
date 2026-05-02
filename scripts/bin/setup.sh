@@ -259,6 +259,30 @@ configure_gpg() {
 	fi
 }
 
+install_bashrc_loader() {
+	local bashrc="${HOME}/.bashrc"
+
+	log_info "Installing ~/.bashrc loader..."
+
+	if grep -q 'bashrc\.d' "${bashrc}" 2>/dev/null; then
+		log_info "${bashrc}: already has bashrc.d loader"
+		return
+	fi
+
+	log_info "Adding bashrc.d loader to ${bashrc}..."
+	cat >> "${bashrc}" << 'EOF'
+
+# Include ~/.bashrc.d/ when using login shell
+if [ -d ~/.bashrc.d ]; then
+	for script in ~/.bashrc.d/*.sh; do
+		[ -r "$script" ] && . "$script"
+	done
+	unset script
+fi
+EOF
+	log_info "Updated: ${bashrc}"
+}
+
 install_systemd_units_wsl2() {
 	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 	local needs_reload=false
@@ -507,25 +531,7 @@ SHELL_EOF
 		log_info "Unchanged: ${bashrc_d}/21-ssh-agent.sh"
 	fi
 
-	# Check if .bashrc sources ~/.bashrc.d/*.sh
-	if ! grep -q 'bashrc\.d' "${bashrc}" 2>/dev/null; then
-		log_info "Adding ${bashrc_d} loader to ${bashrc}..."
-		# shellcheck disable=SC2016
-		cat >> "${bashrc}" << 'EOF'
-
-# Include ~/.bashrc.d/*.sh
-if [ -d "$HOME/.bashrc.d" ]; then
-    for script in "$HOME/.bashrc.d"/*.sh; do
-        # shellcheck source=/dev/null
-        [ -r "$script" ] && . "$script"
-    done
-    unset script
-fi
-EOF
-		log_info "Updated: ${bashrc}"
-	else
-		log_info "${bashrc}: already sources ${bashrc_d}"
-	fi
+	install_bashrc_loader
 }
 
 install_shell_config_wsl2() {
@@ -730,6 +736,67 @@ EOF
 	fi
 }
 
+install_docker_cleanup_timer() {
+	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+	local needs_reload=false
+
+	log_info "Installing docker-cleanup systemd user timer..."
+
+	local docker_cleanup_service_content
+	docker_cleanup_service_content="$(cat << 'UNIT_EOF'
+[Unit]
+Description=Docker system cleanup (prune unused images and build cache)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker system prune --all --force
+UNIT_EOF
+)"
+	if write_if_changed "${systemd_dst}/docker-cleanup.service" "${docker_cleanup_service_content}"; then
+		log_info "Updated: ${systemd_dst}/docker-cleanup.service"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/docker-cleanup.service"
+	fi
+
+	local docker_cleanup_timer_content
+	docker_cleanup_timer_content="$(cat << 'UNIT_EOF'
+[Unit]
+Description=Docker system cleanup (every 6 hours)
+
+[Timer]
+OnCalendar=*-*-* 0/6:00:00
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target
+UNIT_EOF
+)"
+	if write_if_changed "${systemd_dst}/docker-cleanup.timer" "${docker_cleanup_timer_content}"; then
+		log_info "Updated: ${systemd_dst}/docker-cleanup.timer"
+		needs_reload=true
+	else
+		log_info "Unchanged: ${systemd_dst}/docker-cleanup.timer"
+	fi
+
+	if [ "${needs_reload}" = true ]; then
+		systemctl --user daemon-reload
+		log_info "systemd: daemon-reload"
+	fi
+
+	if ! systemctl --user is-active --quiet docker-cleanup.timer; then
+		systemctl --user enable --now docker-cleanup.timer
+		log_info "docker-cleanup.timer: enabled"
+	else
+		log_info "docker-cleanup.timer: already active"
+	fi
+
+	log_info "docker-cleanup timer: installed"
+}
+
 install_cargo_sweep_timer_wsl2() {
 	local systemd_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 	local needs_reload=false
@@ -809,8 +876,10 @@ main_wsl2() {
 	install_yubikey_tool
 	configure_gpg
 	install_systemd_units_wsl2
+	install_bashrc_loader
 	install_shell_config_wsl2
 	install_vscode_server_env_wsl2
+	install_docker_cleanup_timer
 	install_cargo_sweep_timer_wsl2
 
 	# Create lock file
