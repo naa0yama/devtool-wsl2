@@ -154,51 +154,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	type -p fish
 
 RUN <<EOF
-set -euxo pipefail
-echo "**** Install Docker cleanup timer ****"
-
-cat <<- '_DOC_' > /etc/systemd/system/docker-cleanup.service
-[Unit]
-Description=Docker system cleanup (prune unused images and build cache)
-Requires=docker.service
-After=docker.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/docker system prune --all --force
-_DOC_
-
-cat <<- '_DOC_' > /etc/systemd/system/docker-cleanup.timer
-[Unit]
-Description=Docker system cleanup (every 6 hours)
-
-[Timer]
-OnCalendar=*-*-* 0/6:00:00
-Persistent=true
-RandomizedDelaySec=1h
-
-[Install]
-WantedBy=timers.target
-_DOC_
-
-systemctl enable docker-cleanup.timer
-
-EOF
-
-RUN <<EOF
-echo "**** systemctl mask gpg-agent* ****"
-set -euxo pipefail
-
-mkdir -p /etc/systemd/user
-ln -sf /dev/null /etc/systemd/user/gpg-agent.socket
-ln -sf /dev/null /etc/systemd/user/gpg-agent-browser.socket
-ln -sf /dev/null /etc/systemd/user/gpg-agent-extra.socket
-ln -sf /dev/null /etc/systemd/user/gpg-agent-ssh.socket
-ln -sf /dev/null /etc/systemd/user/gpg-agent.service
-
-EOF
-
-RUN <<EOF
 echo "**** Add /etc/devtool-release ****"
 set -euxo pipefail
 
@@ -264,7 +219,7 @@ fi
 # Switch to fish for interactive
 # Note: REMOTE_CONTAINERS_IPC is set during Dev Containers userEnvProbe (undocumented)
 if [[ ! -v REMOTE_CONTAINERS_IPC ]] && [[ -z "$NO_FISH" ]] && command -v fish &> /dev/null; then
-    exec fish --login
+	exec fish --login
 fi
 
 _DOC_
