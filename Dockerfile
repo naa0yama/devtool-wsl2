@@ -16,7 +16,7 @@ ARG CURL_OPTS="-sfSL --retry 3 --retry-delay 2 --retry-connrefused"
 #- -----------------------------------------------------------------------------
 #- - Base
 #- -----------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM ubuntu:noble-20260509.1@sha256:786a8b558f7be160c6c8c4a54f9a57274f3b4fb1491cf65146521ae77ff1dc54 AS base
+FROM --platform=$BUILDPLATFORM ubuntu:noble-20260610@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90 AS base
 
 ARG BUILD_ACTION \
 	BUILD_BASE_REF \
