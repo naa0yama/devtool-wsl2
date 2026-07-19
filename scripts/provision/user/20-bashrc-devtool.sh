@@ -24,7 +24,7 @@ fi
 
 # Source directory: relative to this script, or via PROVISION_ROOT
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROVISION_ROOT="${PROVISION_ROOT:-${SCRIPT_DIR}/../../..}"
+PROVISION_ROOT="${PROVISION_ROOT:-${SCRIPT_DIR}/../..}"
 SRC_DIR="${PROVISION_ROOT}/.bashrc.d/devtool"
 
 if [[ ! -d "${SRC_DIR}" ]]; then
