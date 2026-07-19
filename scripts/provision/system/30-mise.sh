@@ -6,7 +6,7 @@ log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
 log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
 log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
-CURL_OPTS="${CURL_OPTS:--sfSL --retry 3 --retry-delay 2 --retry-connrefused}"
+read -ra CURL_OPTS <<< "${CURL_OPTS:--sfSL --retry 3 --retry-delay 2 --retry-connrefused}"
 DRY_RUN="${DRY_RUN:-}"
 
 _run() {
@@ -31,7 +31,7 @@ _run install -dm 755 /etc/apt/keyrings
 if [[ -z "${DRY_RUN}" ]] && [[ -f /etc/apt/keyrings/mise-archive-keyring.pub ]]; then
 	log_info "mise keyring already exists, skipping"
 else
-	_run curl "${CURL_OPTS}" https://mise.jdx.dev/gpg-key.pub \
+	_run curl "${CURL_OPTS[@]}" https://mise.jdx.dev/gpg-key.pub \
 		--output /etc/apt/keyrings/mise-archive-keyring.pub
 fi
 

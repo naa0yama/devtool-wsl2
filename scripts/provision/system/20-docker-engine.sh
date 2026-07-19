@@ -6,7 +6,7 @@ log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
 log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
 log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
-CURL_OPTS="${CURL_OPTS:--sfSL --retry 3 --retry-delay 2 --retry-connrefused}"
+read -ra CURL_OPTS <<< "${CURL_OPTS:--sfSL --retry 3 --retry-delay 2 --retry-connrefused}"
 DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
 DRY_RUN="${DRY_RUN:-}"
 
@@ -30,7 +30,7 @@ _apt_get() {
 log_info "Install Docker Engine GPG key"
 _run install -m 0755 -d /etc/apt/keyrings
 # WHY-NOT: curl | gpg --dearmor — pipeline failures are silent; writing to .asc then chmod is safer
-_run curl "${CURL_OPTS}" https://download.docker.com/linux/ubuntu/gpg \
+_run curl "${CURL_OPTS[@]}" https://download.docker.com/linux/ubuntu/gpg \
 	--output /etc/apt/keyrings/docker.asc
 _run chmod a+r /etc/apt/keyrings/docker.asc
 
