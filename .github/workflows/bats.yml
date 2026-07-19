@@ -1,0 +1,48 @@
+---
+name: BATS Tests
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+jobs:
+  bats:
+    name: bats (${{ matrix.devtool_env }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        devtool_env:
+          - bare
+          - wsl2
+          - vm
+          - container
+
+    steps:
+      - name: Checkout from repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+      - name: Install tools via mise
+        run: mise install
+
+      - name: Set up bats libraries
+        run: bash tests/helpers/setup-bats-libs.sh
+
+      - name: Run bats tests
+        env:
+          DEVTOOL_ENV: ${{ matrix.devtool_env }}
+        run: mise exec -- bats tests/bats/
+
+      - name: Run shellcheck on provision scripts
+        run: |
+          find scripts/provision -name '*.sh' -print0 \
+            | xargs -0 shellcheck --external-sources
