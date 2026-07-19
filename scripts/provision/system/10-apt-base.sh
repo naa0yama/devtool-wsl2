@@ -50,7 +50,7 @@ _apt_get --yes install --no-install-recommends unminimize
 if [[ -n "${DRY_RUN}" ]]; then
 	echo "[DRY_RUN] yes | unminimize"
 else
-	yes | unminimize
+	{ yes 2>/dev/null || true; } | unminimize
 fi
 
 # --- apt install base packages ---
