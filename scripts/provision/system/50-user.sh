@@ -30,7 +30,7 @@ fi
 
 # --- groupadd ---
 log_info "Create group ${DEFAULT_USERNAME} (gid=${DEFAULT_GID})"
-if getent group "${DEFAULT_GID}" > /dev/null 2>&1; then
+if getent group | awk -F: -v g="${DEFAULT_GID}" '$3==g {found=1} END{exit !found}'; then
 	log_info "gid ${DEFAULT_GID} already exists, skipping groupadd"
 else
 	_run groupadd --gid "${DEFAULT_GID}" "${DEFAULT_USERNAME}"

@@ -31,10 +31,10 @@ write_if_changed() {
 	local content="$2"
 
 	if [[ -f "${dest}" ]]; then
-		local existing_hash new_hash
-		existing_hash="$(echo "${content}" | sha256sum | cut -d' ' -f1)"
-		new_hash="$(sha256sum "${dest}" | cut -d' ' -f1)"
-		if [[ "${existing_hash}" == "${new_hash}" ]]; then
+		local content_hash file_hash
+		content_hash="$(echo "${content}" | sha256sum | cut -d' ' -f1)"
+		file_hash="$(sha256sum "${dest}" | cut -d' ' -f1)"
+		if [[ "${content_hash}" == "${file_hash}" ]]; then
 			log_info "${dest} is up to date, skipping"
 			return 0
 		fi

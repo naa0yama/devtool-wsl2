@@ -7,6 +7,7 @@ log_warn() { echo -e "\033[0;33m[WARN]\033[0m $*" >&2; }
 log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
 DRY_RUN="${DRY_RUN:-}"
+read -ra CURL_OPTS <<< "${CURL_OPTS:--sfSL --retry 3 --retry-delay 2 --retry-connrefused}"
 
 _run() {
 	if [[ -n "${DRY_RUN}" ]]; then
@@ -51,7 +52,7 @@ else
 	if [[ -n "${DRY_RUN}" ]]; then
 		echo "[DRY_RUN] curl -sfSL -o ${FISHER_DEST} https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish"
 	else
-		curl -sfSL -o "${FISHER_DEST}" \
+		curl "${CURL_OPTS[@]}" -o "${FISHER_DEST}" \
 			https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
 	fi
 fi
