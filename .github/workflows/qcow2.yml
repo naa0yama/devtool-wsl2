@@ -1,0 +1,83 @@
+---
+name: qcow2 Golden Image Build
+
+# WHY: workflow_dispatch only — KVM availability on GitHub-hosted runners is
+# unconfirmed (spec §13); automatic triggers waste CI minutes when
+# virt-customize may fall back to TCG (slow, ~60 min) or fail.
+# Phase 3-4 PVE import procedure (qm importdisk / cloud-init drive /
+# template conversion) will be documented separately.
+on:
+  workflow_dispatch:
+
+jobs:
+  qcow2:
+    name: Build qcow2 golden image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout from repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install image build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            libguestfs-tools \
+            qemu-utils \
+            cloud-image-utils
+
+      - name: Check KVM availability
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo "KVM available — using hardware acceleration"
+          else
+            # WHY-NOT: skip LIBGUESTFS_BACKEND here — without it libguestfs
+            # tries libvirt which has no daemon on standard runners and fails.
+            # direct backend lets QEMU use KVM if present, TCG if not.
+            echo "LIBGUESTFS_BACKEND=direct" >> "$GITHUB_ENV"
+            echo "KVM not available — falling back to TCG software emulation"
+          fi
+
+      - name: Download Ubuntu noble (26.04) cloud image
+        run: |
+          # noble = Ubuntu 26.04 LTS; /current/ always resolves to latest
+          # stable point-release build (no date-pin — update is intentional)
+          curl --silent --show-error --fail --location \
+            --retry 3 --retry-delay 5 --retry-connrefused \
+            --output noble-server-cloudimg-amd64.img \
+            https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+
+      - name: Apply provisioning with virt-customize
+        run: |
+          # Copy scripts/ into /opt/devtool/ inside the image so that
+          # bootstrap.sh resolves provision_root as
+          # PROVISION_ROOT(/opt/devtool) + /scripts/provision — matching
+          # the src + "/scripts/provision" logic in bootstrap.sh.
+          sudo -E virt-customize \
+            --add noble-server-cloudimg-amd64.img \
+            --mkdir /opt/devtool \
+            --copy-in "${{ github.workspace }}/scripts:/opt/devtool" \
+            --run-command \
+              'DEVTOOL_ENV=vm PROVISION_ROOT=/opt/devtool bash /opt/devtool/scripts/provision/bootstrap.sh' \
+            --run-command \
+              'bash /opt/devtool/scripts/image/finalize.sh'
+
+      - name: Compress with virt-sparsify
+        run: |
+          sudo -E virt-sparsify \
+            --compress \
+            noble-server-cloudimg-amd64.img \
+            devtool-noble-amd64.qcow2
+
+      - name: Generate sha256 checksum
+        run: sha256sum devtool-noble-amd64.qcow2 | tee devtool-noble-amd64.qcow2.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: devtool-noble-amd64-qcow2
+          path: |
+            devtool-noble-amd64.qcow2
+            devtool-noble-amd64.qcow2.sha256
+          retention-days: 7
