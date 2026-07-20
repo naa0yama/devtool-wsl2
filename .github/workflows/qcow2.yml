@@ -57,18 +57,29 @@ jobs:
           # tmpdir → "passt exited status 1" → appliance launch aborts.
           # No env var / config toggle exists to disable passt selection
           # (probe is pure PATH-based in launch-direct.c). Shadow passt
-          # with an exit-2 stub earlier in PATH so passt_runnable() returns
-          # false and libguestfs falls back to slirp.
+          # with an exit-2 stub so passt_runnable() returns false and
+          # libguestfs falls back to slirp.
+          # Placement: /usr/local/bin appears BEFORE /usr/bin in the
+          # default sudoers `secure_path` on ubuntu-24.04, so `sudo
+          # virt-customize` finds the stub first regardless of caller
+          # PATH. A previous fix put the stub in /usr/local/libexec and
+          # exported PATH — sudo stripped the export via secure_path,
+          # so libguestfs still spawned /usr/bin/passt.
           # WHY-NOT: ubuntu-22.04 pin — kicks the can to 26.04 upgrade.
           # WHY-NOT: LIBGUESTFS_BACKEND=direct — selects qemu launcher,
           #   not the network backend. Passt is still probed.
           # WHY-NOT: aa-complain on /etc/apparmor.d/usr.bin.passt — real
           #   failure is filesystem EACCES on 0700 root tmpdir, not AppArmor.
-          sudo mkdir -p /usr/local/libexec/no-passt
+          # WHY-NOT: sudo --preserve-env=PATH — requires sudoers
+          #   `env_keep+="PATH"` which is not the runner default; brittle.
           printf '#!/bin/sh\nexit 2\n' \
-            | sudo tee /usr/local/libexec/no-passt/passt > /dev/null
-          sudo chmod +x /usr/local/libexec/no-passt/passt
-          echo "PATH=/usr/local/libexec/no-passt:${PATH}" >> "$GITHUB_ENV"
+            | sudo tee /usr/local/bin/passt > /dev/null
+          sudo chmod +x /usr/local/bin/passt
+          # Verify sudo resolves the shadow (exit 2 expected)
+          sudo -n which passt
+          sudo -n passt --help && rc=$? || rc=$?
+          echo "shadow passt exit=${rc} (expect 2)"
+          test "${rc}" = "2"
 
       - name: Check KVM availability
         run: |
