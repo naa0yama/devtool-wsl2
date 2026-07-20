@@ -23,13 +23,18 @@ on:
 
 jobs:
   qcow2:
-    name: Build qcow2 golden image
+    name: Build qcow2 golden image (${{ matrix.series }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [noble, resolute]
     env:
       COMMIT_SHORT_SHA: "null"
+      ASSET_NAME: ""
 
     steps:
       - name: Checkout from repository
@@ -47,7 +52,8 @@ jobs:
           sudo apt-get install --no-install-recommends --yes \
             libguestfs-tools \
             qemu-utils \
-            cloud-image-utils
+            cloud-image-utils \
+            fuse3
 
       - name: Shadow passt to force libguestfs slirp fallback
         run: |
@@ -90,36 +96,49 @@ jobs:
             echo "KVM not available — TCG software emulation"
           fi
 
-      - name: Download Ubuntu noble (24.04 LTS) cloud image
+      - name: Download Ubuntu ${{ matrix.series }} cloud image
         run: |
-          # noble = Ubuntu 24.04 LTS (26.04 LTS 未 GA のため fallback 使用); /current/ always resolves to latest
-          # stable point-release build (no date-pin — update is intentional)
+          # WHY-NOT: hardcode URL — series-map.sh is the single source of truth;
+          #   adding a new series or changing the URL pattern touches only that file
+          # shellcheck disable=SC1091
+          source scripts/image/series-map.sh
+          url=$(series_to_url "${{ matrix.series }}")
           curl --silent --show-error --fail --location \
             --retry 3 --retry-delay 5 --retry-connrefused \
-            --output noble-server-cloudimg-amd64.img \
-            https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+            --output "${{ matrix.series }}-server-cloudimg-amd64.img" \
+            "${url}"
 
-      - name: Apply provisioning with virt-customize
+      - name: Provision via guestmount + chroot
         run: |
-          # Copy scripts/ into /opt/devtool/ inside the image so that
-          # bootstrap.sh resolves provision_root as
-          # PROVISION_ROOT(/opt/devtool) + /scripts/provision — matching
-          # the src + "/scripts/provision" logic in bootstrap.sh.
-          sudo -E virt-customize \
-            --add noble-server-cloudimg-amd64.img \
-            --mkdir /opt/devtool \
-            --copy-in "${{ github.workspace }}/scripts:/opt/devtool" \
-            --run-command \
-              'DEVTOOL_ENV=vm PROVISION_ROOT=/opt/devtool bash /opt/devtool/scripts/provision/bootstrap.sh' \
-            --run-command \
-              'bash /opt/devtool/scripts/image/finalize.sh'
+          # WHY: guestmount + chroot allows bind-mounting the host resolver stub
+          #   into the guest without modifying the guest fs's resolv.conf symlink.
+          #   Guest image remains stock Ubuntu (bit-for-bit except provisioning).
+          # WHY-NOT: virt-customize — libguestfs appliance DNS resolution fails;
+          #   the appliance boots in its own network namespace and cannot reach
+          #   archive.ubuntu.com even with slirp fallback when resolv.conf is
+          #   missing inside the appliance environment.
+          # WHY-NOT: rewrite runner /etc/resolv.conf — unverified whether
+          #   libguestfs slirp snapshots the file before appliance boot; chroot
+          #   approach is upstream-recommended and surgically scoped.
+          sudo mkdir -p /mnt/qcow2
+          sudo -E guestmount \
+            --add "${{ matrix.series }}-server-cloudimg-amd64.img" \
+            --inspector --rw /mnt/qcow2
+          sudo bash scripts/image/provision-chroot.sh \
+            /mnt/qcow2 \
+            "${{ github.workspace }}/scripts"
+          sudo guestunmount /mnt/qcow2
 
       - name: Compress with virt-sparsify
         run: |
+          # shellcheck disable=SC1091
+          source scripts/image/series-map.sh
+          asset=$(series_to_asset_name "${{ matrix.series }}" "${{ env.COMMIT_SHORT_SHA }}")
           sudo -E virt-sparsify \
             --compress \
-            noble-server-cloudimg-amd64.img \
-            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2"
+            "${{ matrix.series }}-server-cloudimg-amd64.img" \
+            "${asset}"
+          echo "ASSET_NAME=${asset}" >> "$GITHUB_ENV"
 
       - name: Split archive for release
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
@@ -129,71 +148,40 @@ jobs:
           # WHY: qcow2 は sparsify+compress 後でも 2GB を超え得るため
           # build.yml と同じ 2000M split でリリースアセットに載せる。
           split --verbose --bytes=2000M --suffix-length=1 --numeric-suffixes=1 \
-            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
-            "dist/devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.part"
-          sha256sum dist/devtool-noble-amd64-*.qcow2.part* > dist/sha256sum-qcow2.txt
+            "${{ env.ASSET_NAME }}" \
+            "dist/${{ env.ASSET_NAME }}.part"
+          sha256sum dist/*.qcow2.part* > dist/sha256sum-qcow2.txt
           ls -lah dist/
 
       - name: Generate sha256 checksum (non-release runs)
         if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
         run: |
-          sha256sum "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
-            | tee "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256"
+          sha256sum "${{ env.ASSET_NAME }}" \
+            | tee "${{ env.ASSET_NAME }}.sha256"
+
+      - name: Upload build artifact (release runs)
+        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devtool-${{ matrix.series }}-amd64-qcow2
+          path: dist/
+          retention-days: 7
 
       - name: Upload build artifact (non-release runs)
         if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: devtool-noble-amd64-qcow2
+          name: devtool-${{ matrix.series }}-amd64-qcow2
           path: |
-            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2
-            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256
+            ${{ env.ASSET_NAME }}
+            ${{ env.ASSET_NAME }}.sha256
           retention-days: 7
-
-      - name: Determine release type
-        id: release_type
-        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
-        run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=false" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=true" >> "$GITHUB_ENV"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=true" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=false" >> "$GITHUB_ENV"
-          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=false" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=true" >> "$GITHUB_ENV"
-          else
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=false" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=false" >> "$GITHUB_ENV"
-          fi
-
-      - name: Attach qcow2 to Release
-        # WHY: build.yml が同一 COMMIT_SHORT_SHA で release を先に作成する
-        # 前提。softprops/action-gh-release は tag が既存でも upsert で
-        # asset を追加してくれるため、WSL2 tar と qcow2 が同一 release に
-        # 並ぶ。
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
-        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
-        with:
-          name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
-          tag_name: ${{ env.COMMIT_SHORT_SHA }}
-          generate_release_notes: true
-          draft: ${{ env.DRAFT }}
-          prerelease: ${{ env.PRERELEASE }}
-          make_latest: ${{ env.MAKE_LATEST }}
-          files: |
-            ./dist/*
 
       - name: Write PVE import command to summary
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## PVE Import Command
+          ## PVE Import Command (${{ matrix.series }})
 
           \`\`\`bash
           tag='${{ env.COMMIT_SHORT_SHA }}'
@@ -201,10 +189,10 @@ jobs:
           base="https://github.com/\$repo/releases/download/\$tag"
           for i in 1 2; do
             curl --location --fail --remote-name \
-              "\$base/devtool-noble-amd64-\$tag.qcow2.part\$i" || break
+              "\$base/devtool-${{ matrix.series }}-amd64-\$tag.qcow2.part\$i" || break
           done
-          cat devtool-noble-amd64-\$tag.qcow2.part* > devtool-noble-amd64-\$tag.qcow2
-          qm importdisk <VMID> devtool-noble-amd64-\$tag.qcow2 <STORAGE>
+          cat devtool-${{ matrix.series }}-amd64-\$tag.qcow2.part* > devtool-${{ matrix.series }}-amd64-\$tag.qcow2
+          qm importdisk <VMID> devtool-${{ matrix.series }}-amd64-\$tag.qcow2 <STORAGE>
           \`\`\`
 
           詳細な PVE 取り込み手順: \`docs/guides/pve-import.md\`
