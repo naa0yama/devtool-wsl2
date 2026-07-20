@@ -138,14 +138,14 @@ main() {
 	DEVTOOL_REPO="${DEVTOOL_REPO:-naa0yama/devtool-wsl2}"
 	DRY_RUN="${DRY_RUN:-}"
 	DEVTOOL_SKIP_FETCH="${DEVTOOL_SKIP_FETCH:-}"
-	PROVISION_ROOT="${PROVISION_ROOT:-}"
+	DEVTOOL_SRC_ROOT="${DEVTOOL_SRC_ROOT:-}"
 
 	DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
 
-	if [[ -n "${PROVISION_ROOT}" ]]; then
+	if [[ -n "${DEVTOOL_SRC_ROOT}" ]]; then
 		# Test seam: use specified root directly, skip fetch
-		src="${PROVISION_ROOT}"
-		log_info "PROVISION_ROOT override: ${src}"
+		src="${DEVTOOL_SRC_ROOT}"
+		log_info "DEVTOOL_SRC_ROOT override: ${src}"
 	else
 		if [[ "${EUID}" -eq 0 ]]; then
 			DEVTOOL_CACHE="${DEVTOOL_CACHE:-/var/cache/devtool}"
@@ -217,7 +217,7 @@ main() {
 
 	while IFS= read -r -d '' script; do
 		log_info "system: ${script}"
-		_run_as_root env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" bash "${script}"
+		_run_as_root env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "${script}"
 	done < <(find "${provision_root}/system" -maxdepth 1 -name '*.sh' -print0 | sort -z)
 
 	# --- user layer ---
@@ -227,9 +227,9 @@ main() {
 		if [[ -n "${DRY_RUN}" ]]; then
 			log_info "[DRY_RUN] (${DEFAULT_USERNAME}) $*"
 		elif [[ "${EUID}" -eq 0 ]]; then
-			su - "${DEFAULT_USERNAME}" -c "DEVTOOL_ENV='${DEVTOOL_ENV}' DRY_RUN='${DRY_RUN}' bash '$1'"
+			su - "${DEFAULT_USERNAME}" -c "DEVTOOL_ENV='${DEVTOOL_ENV}' DRY_RUN='${DRY_RUN}' PROVISION_ROOT='${provision_root}' bash '$1'"
 		else
-			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" bash "$1"
+			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "$1"
 		fi
 	}
 

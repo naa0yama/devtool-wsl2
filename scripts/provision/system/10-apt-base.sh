@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euxo pipefail
+set -euo pipefail
+[[ -n "${DEVTOOL_TRACE:-}" ]] && set -x
 
 # Logger
 log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }

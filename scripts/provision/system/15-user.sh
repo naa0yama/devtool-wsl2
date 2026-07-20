@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euxo pipefail
+set -euo pipefail
+[[ -n "${DEVTOOL_TRACE:-}" ]] && set -x
 
 log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
 
@@ -12,8 +13,8 @@ DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
 #   ADR-0006 の「bare Ubuntu では bash」要件は呼び出し元 bootstrap.sh が
 #   DEVTOOL_USER_SHELL=/bin/bash を渡すことで対処 (Cycle 8)。
 DEVTOOL_USER_SHELL="${DEVTOOL_USER_SHELL:-/usr/bin/fish}"
-# WHY-NOT: PROVISION_CHROOT を削除 — test seam-α で sudoers.d 書き込み先を
-#   tmpdir にリダイレクトするために必要。空文字列時は本番パス (/etc/sudoers.d) に展開。
+# WHY-NOT: PROVISION_CHROOT を残す — test seam-α が sudoers.d 先を tmpdir に切替えるため必要。
+#   空文字列時は本番パス (/etc/sudoers.d) に展開。
 PROVISION_CHROOT="${PROVISION_CHROOT:-}"
 
 # --- groupadd ---

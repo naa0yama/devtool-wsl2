@@ -71,7 +71,7 @@ _fake_prov_root() {
 	export UPSTREAM="https://example.com"
 	export PROVISION_ASSET_URL="https://example.com/provision.tar.gz"
 	export DEVTOOL_PROVISION_DIR="${TMPDIR}/provision"
-	export PROVISION_ROOT="$(_fake_prov_root)"
+	export DEVTOOL_SRC_ROOT="$(_fake_prov_root)"
 	export DRY_RUN=1
 	export DEVTOOL_ENV=bare
 

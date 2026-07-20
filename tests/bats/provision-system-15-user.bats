@@ -83,3 +83,10 @@ teardown() {
 	assert_success
 	[ ! -f "${TMPDIR}/useradd.log" ]
 }
+
+@test "usermod_locks_password_when_default_user_created" {
+	run bash "${SCRIPT}"
+	assert_success
+	run grep --fixed-strings -- "--password * user" "${TMPDIR}/usermod.log"
+	assert_success
+}
