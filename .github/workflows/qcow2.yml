@@ -39,9 +39,9 @@ jobs:
             echo "KVM not available — falling back to TCG software emulation"
           fi
 
-      - name: Download Ubuntu noble (26.04) cloud image
+      - name: Download Ubuntu noble (24.04 LTS) cloud image
         run: |
-          # noble = Ubuntu 26.04 LTS; /current/ always resolves to latest
+          # noble = Ubuntu 24.04 LTS (26.04 LTS 未 GA のため fallback 使用); /current/ always resolves to latest
           # stable point-release build (no date-pin — update is intentional)
           curl --silent --show-error --fail --location \
             --retry 3 --retry-delay 5 --retry-connrefused \
@@ -74,7 +74,7 @@ jobs:
         run: sha256sum devtool-noble-amd64.qcow2 | tee devtool-noble-amd64.qcow2.sha256
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: devtool-noble-amd64-qcow2
           path: |
