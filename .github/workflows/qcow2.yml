@@ -51,14 +51,18 @@ jobs:
 
       - name: Check KVM availability
         run: |
+          # WHY: force direct backend unconditionally. libvirt has no daemon
+          # on GH-hosted runners, and even with KVM present the libguestfs
+          # default networking path (passt) fails on GH runners with
+          # "passt exited with status 1" (nested-virt / netns constraints).
+          # direct backend + QEMU user-net avoids passt entirely; KVM is
+          # still used when /dev/kvm exists.
+          echo "LIBGUESTFS_BACKEND=direct" >> "$GITHUB_ENV"
           if [ -e /dev/kvm ]; then
-            echo "KVM available — using hardware acceleration"
+            echo "KVM available — direct backend with hardware acceleration"
+            sudo chmod 0666 /dev/kvm || true
           else
-            # WHY-NOT: skip LIBGUESTFS_BACKEND here — without it libguestfs
-            # tries libvirt which has no daemon on standard runners and fails.
-            # direct backend lets QEMU use KVM if present, TCG if not.
-            echo "LIBGUESTFS_BACKEND=direct" >> "$GITHUB_ENV"
-            echo "KVM not available — falling back to TCG software emulation"
+            echo "KVM not available — direct backend with TCG software emulation"
           fi
 
       - name: Download Ubuntu noble (24.04 LTS) cloud image
