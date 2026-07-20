@@ -94,8 +94,30 @@ _phase1_system() {
 }
 
 _phase2_user() {
-	log_erro "phase 2 not yet implemented (Cycle 9)"
-	exit 1
+	local euid_val="${DEVTOOL_PHASE2_UID:-${EUID}}"
+	if [[ "${euid_val}" -ne 1100 ]]; then
+		log_erro "phase 2 must run as uid 1100 (got ${euid_val})"
+		exit 1
+	fi
+
+	local provision_dir="${DEVTOOL_PROVISION_DIR}"
+	log_info "=== phase 2: user layer ==="
+
+	while IFS= read -r -d '' script; do
+		log_info "user: ${script}"
+		bash "${script}"
+	done < <(find "${provision_dir}/user" -maxdepth 1 -name '*.sh' -print0 | sort -z)
+
+	local username="${DEFAULT_USERNAME}"
+	if ! id -nG "${username}" | grep -qw "docker" 2>/dev/null; then
+		local docker_gid
+		# WHY-NOT: 固定 gid ハードコード — 上流 docker パッケージ更新で gid が変わると追従コスト発生
+		docker_gid="$(getent group docker | cut --delimiter=: --fields=3)"
+		sudo usermod --append --groups docker "${username}"
+		log_info "docker group join: gid=${docker_gid}"
+	fi
+
+	log_info "=== phase 2 complete ==="
 }
 
 main() {
