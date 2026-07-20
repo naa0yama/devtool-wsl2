@@ -46,47 +46,6 @@ jobs:
           calculatedSha=$(git rev-parse --short ${{ github.sha }})
           echo "COMMIT_SHORT_SHA=$calculatedSha" >> "$GITHUB_ENV"
 
-      - name: Free disk space on runner
-        run: |
-          # WHY: ubuntu-latest (24.04) runner ships with ~14GB free of ~28GB
-          # total, but guestmount + chroot apt-get install for resolute
-          # (26.04) exhausts the disk mid-provision (dpkg "No space left
-          # on device" at hicolor-icon-theme). Removing pre-installed
-          # toolchains we do not use reclaims ~40GB before provisioning.
-          # WHY-NOT: qemu-img resize on the guest image — bloats the
-          # released artifact and requires growpart inside chroot; the
-          # shortage is on the host runner backing the FUSE mount, not
-          # the guest fs (which has headroom of its own).
-          # WHY-NOT: apt-get clean between chroot install phases — only
-          # reclaims the apt cache (hundreds of MB); actual shortage is
-          # multi-GB of installed package trees.
-          # WHY-NOT: jlumbroso/free-disk-space action — introduces a
-          # third-party action pin to audit; inline rm is auditable and
-          # scoped to what qcow2 build actually needs.
-          # Approximate reclaim on ubuntu-24.04 (image 20260714): dotnet
-          # 17G, android 11G, CodeQL 5.4G, ghc+ghcup 2.7G, swift 2G,
-          # hostedtoolcache/go 1.5-2G, Ruby 1G, PyPy ~1G, apt purges
-          # ~2G, docker prune ~3G, /mnt/swapfile 4G.
-          echo "Before:" && df --human-readable /
-          sudo swapoff --all
-          sudo rm --force /mnt/swapfile
-          sudo rm --recursive --force \
-            /usr/share/dotnet \
-            /usr/local/lib/android \
-            /opt/hostedtoolcache/CodeQL \
-            /opt/ghc \
-            /usr/local/.ghcup \
-            /usr/share/swift \
-            /opt/hostedtoolcache/go \
-            /opt/hostedtoolcache/Ruby \
-            /opt/hostedtoolcache/PyPy
-          sudo apt-get purge --yes --auto-remove \
-            '^dotnet-.*' '^llvm-.*' 'php.*' '^mongodb-.*' \
-            google-cloud-cli firefox google-chrome-stable \
-            azure-cli mono-devel || true
-          sudo docker system prune --all --force --volumes || true
-          echo "After:" && df --human-readable /
-
       - name: Install image build tools
         run: |
           sudo apt-get update
@@ -149,6 +108,32 @@ jobs:
             --output "${{ matrix.series }}-server-cloudimg-amd64.img" \
             "${url}"
 
+      - name: Expand guest cloud image to 20G
+        run: |
+          # WHY: Ubuntu cloud images ship with a ~2.2G root partition and
+          # rely on cloud-init `growpart` at first boot to fill the backing
+          # device. Provisioning via guestmount + chroot never boots the
+          # guest, so apt-get installs write into the small original
+          # partition → dpkg "No space left on device" mid-install.
+          # `virt-resize --expand` grows the last partition + resizes the
+          # filesystem before mount. Final `virt-sparsify --compress`
+          # (post-provision) reclaims free blocks so the released artifact
+          # stays small.
+          # WHY-NOT: growpart + resize2fs inside chroot — cloud-init not
+          #   present, and the partition table itself must be rewritten
+          #   before the fs can be grown; virt-resize does both atomically.
+          # WHY-NOT: qemu-img resize alone — resizes the disk file only,
+          #   not the partition or filesystem inside it. dpkg still hits
+          #   the 2.2G partition boundary.
+          # WHY-NOT: host runner cleanup (previous PR #431) — measured
+          #   host had 89G free before and 120G after cleanup while the
+          #   failure persisted; shortage is inside the guest, not host.
+          img="${{ matrix.series }}-server-cloudimg-amd64.img"
+          qemu-img create -f qcow2 -o preallocation=off expanded.img 20G
+          sudo virt-resize --expand /dev/sda1 "${img}" expanded.img
+          mv expanded.img "${img}"
+          sudo qemu-img info "${img}" | grep --extended-regexp "^(virtual size|disk size)"
+
       - name: Provision via guestmount + chroot
         run: |
           # WHY: guestmount + chroot allows bind-mounting the host resolver stub
@@ -168,6 +153,17 @@ jobs:
           sudo bash scripts/image/provision-chroot.sh \
             /mnt/qcow2 \
             "${{ github.workspace }}/scripts"
+          # Minimize final qcow2 size before sparsify: apt cache, package
+          # lists, temp files, and log bodies contribute several hundred MB
+          # each and are all reproducible / non-essential for the deployed VM.
+          # WHY-NOT: run inside provision-chroot.sh — bats tests assert that
+          #   script's exact behavior; cleanup is workflow concern, not
+          #   provisioning contract.
+          sudo chroot /mnt/qcow2 apt-get clean
+          sudo find /mnt/qcow2/var/lib/apt/lists -mindepth 1 -delete
+          sudo find /mnt/qcow2/var/tmp -mindepth 1 -delete
+          sudo find /mnt/qcow2/tmp -mindepth 1 -delete
+          sudo find /mnt/qcow2/var/log -type f -exec truncate --size=0 {} +
           sudo guestunmount /mnt/qcow2
 
       - name: Compress with virt-sparsify
@@ -180,6 +176,28 @@ jobs:
             "${{ matrix.series }}-server-cloudimg-amd64.img" \
             "${asset}"
           echo "ASSET_NAME=${asset}" >> "$GITHUB_ENV"
+
+      - name: Report qcow2 and guest filesystem size
+        run: |
+          # WHY: Track host-view qcow2 size (compressed disk) alongside
+          # guest-view filesystem usage (df inside the image) to inform
+          # whether the 20G expansion in the resize step can be reduced
+          # to 15G or 10G. Both numbers are surfaced in the Actions GUI
+          # step summary so the ratio is auditable across runs.
+          {
+            echo "## qcow2 size report (${{ matrix.series }})"
+            echo ''
+            echo '### Host view (on-disk qcow2)'
+            echo '```'
+            ls -l --human-readable "${ASSET_NAME}"
+            qemu-img info "${ASSET_NAME}"
+            echo '```'
+            echo ''
+            echo '### Guest view (filesystem inside image)'
+            echo '```'
+            sudo virt-df --human-readable --add "${ASSET_NAME}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Split archive for release
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
