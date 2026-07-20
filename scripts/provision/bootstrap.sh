@@ -265,7 +265,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 			_phase2_user
 			;;
 		*)
-			_stage0_provision_fetch
 			main "$@"
 			;;
 	esac

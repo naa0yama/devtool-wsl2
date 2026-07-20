@@ -38,9 +38,8 @@ else
 fi
 
 # --- password ---
-log_info "Set passwordless login for ${DEFAULT_USERNAME}"
-echo "${DEFAULT_USERNAME}:password" | chpasswd
-passwd --delete "${DEFAULT_USERNAME}"
+log_info "Lock password for ${DEFAULT_USERNAME} (NOPASSWD sudo is used instead)"
+usermod --password '*' "${DEFAULT_USERNAME}"
 
 # --- sudoers ---
 log_info "Configure sudoers for ${DEFAULT_USERNAME}"

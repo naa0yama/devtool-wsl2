@@ -19,7 +19,7 @@ log_info "Deploy ~/.bashrc"
 install -m 0644 "${PROVISION_ROOT}/files/bashrc" "${HOME}/.bashrc"
 
 # --- deploy ~/.bashrc.d/devtool ---
-SRC_DIR="${PROVISION_ROOT}/../../.bashrc.d/devtool"
+SRC_DIR="${PROVISION_ROOT}/files/bashrc.d/devtool"
 if [[ -d "${SRC_DIR}" ]]; then
 	log_info "Deploy ${SRC_DIR} to ${HOME}/.bashrc.d/devtool/"
 	mkdir -p "${HOME}/.bashrc.d/devtool"

@@ -34,7 +34,6 @@ ENV TZ=Asia/Tokyo
 SHELL [ "/bin/bash", "-c" ]
 
 COPY scripts			/opt/devtool/scripts
-COPY .bashrc.d/devtool/	/opt/devtool/.bashrc.d/devtool/
 
 # WHY-NOT: RUN 個別行維持 — 新 script 追加時に Dockerfile 修正が必要になる
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

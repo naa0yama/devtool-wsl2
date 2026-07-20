@@ -147,7 +147,7 @@ SUDOEOF
 
 	run bash -c "DEVTOOL_BOOTSTRAP_PHASE=2 bash '${SCRIPT}' 2>'${TMPDIR}/bootstrap.log'"
 	assert_success
-	run grep --fixed-strings 'usermod' "${TMPDIR}/sudo.log"
+	run grep --fixed-strings 'usermod --append --groups docker user' "${TMPDIR}/sudo.log"
 	assert_success
 	run grep --fixed-strings 'gid=998' "${TMPDIR}/bootstrap.log"
 	assert_success

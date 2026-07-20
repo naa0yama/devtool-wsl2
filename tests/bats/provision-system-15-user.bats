@@ -25,13 +25,10 @@ setup() {
 	printf '#!/bin/sh\nexit 1\n' > "${FAKE_BIN}/getent"
 	chmod +x "${FAKE_BIN}/getent"
 
-	# chpasswd stub: drain stdin, exit 0
-	printf '#!/bin/sh\ncat > /dev/null\nexit 0\n' > "${FAKE_BIN}/chpasswd"
-	chmod +x "${FAKE_BIN}/chpasswd"
-
-	# passwd stub: exit 0
-	printf '#!/bin/sh\nexit 0\n' > "${FAKE_BIN}/passwd"
-	chmod +x "${FAKE_BIN}/passwd"
+	# usermod stub: record args to ${TMPDIR}/usermod.log
+	printf '#!/bin/sh\necho "$@" >> "${TMPDIR}/usermod.log"\nexit 0\n' \
+		> "${FAKE_BIN}/usermod"
+	chmod +x "${FAKE_BIN}/usermod"
 
 	export PATH="${FAKE_BIN}:${PATH}"
 
