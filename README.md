@@ -1,7 +1,17 @@
 # devtool-WSL2
 
-WSL2 の開発環境を自動構築するセット\
-以前は、 WSL2 に都度コマンドを打って環境構築していたが似たような環境が複数必要になるため自動化し環境構築にかかる時間を省力化した。
+WSL2 / Proxmox VE / 汎用 Ubuntu の開発環境を自動構築するセット\
+以前は、 WSL2 に都度コマンドを打って環境構築していたが似たような環境が複数必要になるため自動化し環境構築にかかる時間を省力化した。現在は WSL2 rootfs、Proxmox VE 用 qcow2 golden image、既存 Ubuntu ホストへの bootstrap の 3 経路をサポートする。
+
+## 対応環境と経路の使い分け
+
+Single Source of Truth (SSOT) として `scripts/provision/{system,user}/*.sh` を保持し、3 種類の配布形態から呼び出す:
+
+- **A. WSL2 rootfs** — Windows Terminal + PowerShell 経由で自動 Import。個人開発機の標準経路。詳細は下の「使い方」節。
+- **B. bootstrap.sh (既存 Ubuntu / VM / container)** — 既存 Ubuntu 24.04 host に `curl | bash` で SSOT スクリプトを流し込む。CI やゲスト VM で使う。エントリ: `scripts/provision/bootstrap.sh`。
+- **C. Proxmox VE qcow2 golden image** — GitHub Actions (`.github/workflows/qcow2.yml`, `workflow_dispatch`) で virt-customize 済み qcow2 を生成 → PVE に import して template 化 → clone 展開。手順は [docs/guides/pve-import.md](docs/guides/pve-import.md) を参照。
+
+`setup.sh` は `DEVTOOL_SETUP_MODE` (auto: `wsl2` / `vm` / `remote`) を検出し、WSL2 では Windows OpenSSH/GPG bridge を、VM/qcow2 由来では docker-cleanup / cargo-sweep タイマーのみを、SSH のみの remote host では GPG/sshd 設定のみを導入する。
 
 > [!IMPORTANT]
 > 2025/05/24 に Backup/Restore を実装した。これにより devtool.ps1 を実行時に `/home/user` 配下を一定の条件で tar で固め `%USERPROFILE%/Documents/WSL2/Backups` に吐き出します。 **一時保管ため非圧縮です** Restore は WSL2 のディストリビューション初回起動時に最新の tar ファイルを利用し展開される。 展開後、 `$HOME/.dwsl2-restore.lock` を作成することで次回以降は実施されません

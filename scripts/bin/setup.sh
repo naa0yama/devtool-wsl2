@@ -49,6 +49,42 @@ is_wsl2() {
 	grep -Eqi 'microsoft|wsl' /proc/version 2>/dev/null
 }
 
+# Detect setup mode: outputs one of "wsl2", "vm", or "remote".
+# Override via DEVTOOL_SETUP_MODE for test seams and manual control.
+# Contract: override values are returned verbatim without validation
+# (raw detector). main() dispatch is responsible for rejecting unknown modes.
+# WHY-NOT: DMI 判定のみ — QEMU/KVM で sys_vendor が空のケースがあり
+# systemd-detect-virt --vm を second-chance に置く。
+detect_setup_mode() {
+	if [[ -n "${DEVTOOL_SETUP_MODE:-}" ]]; then
+		printf '%s' "${DEVTOOL_SETUP_MODE}"
+		return
+	fi
+
+	if grep -Eqi 'microsoft|wsl' /proc/version 2>/dev/null; then
+		printf 'wsl2'
+		return
+	fi
+
+	local vendor
+	vendor="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)"
+	if printf '%s' "${vendor}" | grep -Eqi 'QEMU|KVM|VMware|VirtualBox|Xen|innotek'; then
+		printf 'vm'
+		return
+	fi
+
+	if command -v systemd-detect-virt >/dev/null 2>&1; then
+		local virt_type
+		virt_type="$(systemd-detect-virt --vm 2>/dev/null || true)"
+		if [[ -n "${virt_type}" && "${virt_type}" != "none" ]]; then
+			printf 'vm'
+			return
+		fi
+	fi
+
+	printf 'remote'
+}
+
 # Convert Windows paths: remove CR, convert backslashes to forward slashes
 fixpath() {
 	# shellcheck disable=SC1003
@@ -894,6 +930,28 @@ main_wsl2() {
 	log_info "To re-run setup: rm ${LOCK_FILE}"
 }
 
+main_vm() {
+	echo "============================================"
+	echo " Devtool Setup (VM / qcow2 golden image)"
+	echo "============================================"
+	echo ""
+
+	check_dependencies
+	install_docker_cleanup_timer
+	install_cargo_sweep_timer_wsl2
+
+	# Create lock file
+	mkdir -p "$(dirname "${LOCK_FILE}")"
+	date -Iseconds > "${LOCK_FILE}"
+
+	echo ""
+	echo "============================================"
+	echo " Setup complete!"
+	echo "============================================"
+	echo ""
+	log_info "To re-run setup: rm ${LOCK_FILE}"
+}
+
 main_remote() {
 	echo "============================================"
 	echo " GPG/SSH Agent Tools Setup (Remote)"
@@ -920,11 +978,19 @@ main_remote() {
 }
 
 main() {
-	if is_wsl2; then
-		main_wsl2
-	else
-		main_remote
-	fi
+	local mode
+	mode="$(detect_setup_mode)"
+	case "${mode}" in
+		wsl2)   main_wsl2 ;;
+		vm)     main_vm ;;
+		remote) main_remote ;;
+		*)
+			printf 'ERROR: unknown setup mode %q (expected wsl2|vm|remote); set DEVTOOL_SETUP_MODE explicitly\n' "${mode}" >&2
+			exit 1
+			;;
+	esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+	main "$@"
+fi

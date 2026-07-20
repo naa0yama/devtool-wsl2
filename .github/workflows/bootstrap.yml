@@ -1,0 +1,43 @@
+---
+name: Bootstrap Path B
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+jobs:
+  bootstrap:
+    name: Bootstrap (container)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: ubuntu:26.04
+      options: --user root
+
+    steps:
+      - name: Install bootstrap prerequisites
+        run: |
+          apt-get -y update
+          apt-get -y install --no-install-recommends curl sudo ca-certificates
+
+      - name: Checkout from repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run bootstrap (first pass)
+        env:
+          DEVTOOL_ENV: container
+          DEVTOOL_SKIP_FETCH: "1"
+          PROVISION_ROOT: ${{ github.workspace }}/scripts/provision
+        run: |
+          bash scripts/provision/bootstrap.sh
+
+      - name: Run bootstrap (idempotency check — second pass)
+        env:
+          DEVTOOL_ENV: container
+          DEVTOOL_SKIP_FETCH: "1"
+          PROVISION_ROOT: ${{ github.workspace }}/scripts/provision
+        run: |
+          bash scripts/provision/bootstrap.sh

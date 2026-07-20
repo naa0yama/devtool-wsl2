@@ -1,4 +1,5 @@
 [tools]
+"aqua:bats-core/bats-core" = "latest"
 "cargo:cargo-sweep" = "latest"
 "cargo:topgrade" = "latest"
 awscli = { version = "latest", symlink_bins = "true" }

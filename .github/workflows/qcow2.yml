@@ -1,0 +1,182 @@
+---
+name: qcow2 Golden Image Build
+
+# WHY: virt-customize は KVM 有無で 10〜60 分かかるため、PR opened/sync
+# 全てで走らせるとコスト過大。release 生成 3 パス (workflow_dispatch /
+# merged PR / schedule) のみに絞り、build.yml の WSL2 リリースと lockstep で
+# qcow2 asset をリリースに添付する。
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+  schedule:
+    - cron: "00 02 1 * *"
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create pre-release"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  qcow2:
+    name: Build qcow2 golden image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      COMMIT_SHORT_SHA: "null"
+
+    steps:
+      - name: Checkout from repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set short git commit SHA
+        run: |
+          set -eux
+          calculatedSha=$(git rev-parse --short ${{ github.sha }})
+          echo "COMMIT_SHORT_SHA=$calculatedSha" >> "$GITHUB_ENV"
+
+      - name: Install image build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            libguestfs-tools \
+            qemu-utils \
+            cloud-image-utils
+
+      - name: Check KVM availability
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo "KVM available — using hardware acceleration"
+          else
+            # WHY-NOT: skip LIBGUESTFS_BACKEND here — without it libguestfs
+            # tries libvirt which has no daemon on standard runners and fails.
+            # direct backend lets QEMU use KVM if present, TCG if not.
+            echo "LIBGUESTFS_BACKEND=direct" >> "$GITHUB_ENV"
+            echo "KVM not available — falling back to TCG software emulation"
+          fi
+
+      - name: Download Ubuntu noble (24.04 LTS) cloud image
+        run: |
+          # noble = Ubuntu 24.04 LTS (26.04 LTS 未 GA のため fallback 使用); /current/ always resolves to latest
+          # stable point-release build (no date-pin — update is intentional)
+          curl --silent --show-error --fail --location \
+            --retry 3 --retry-delay 5 --retry-connrefused \
+            --output noble-server-cloudimg-amd64.img \
+            https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+
+      - name: Apply provisioning with virt-customize
+        run: |
+          # Copy scripts/ into /opt/devtool/ inside the image so that
+          # bootstrap.sh resolves provision_root as
+          # PROVISION_ROOT(/opt/devtool) + /scripts/provision — matching
+          # the src + "/scripts/provision" logic in bootstrap.sh.
+          sudo -E virt-customize \
+            --add noble-server-cloudimg-amd64.img \
+            --mkdir /opt/devtool \
+            --copy-in "${{ github.workspace }}/scripts:/opt/devtool" \
+            --run-command \
+              'DEVTOOL_ENV=vm PROVISION_ROOT=/opt/devtool bash /opt/devtool/scripts/provision/bootstrap.sh' \
+            --run-command \
+              'bash /opt/devtool/scripts/image/finalize.sh'
+
+      - name: Compress with virt-sparsify
+        run: |
+          sudo -E virt-sparsify \
+            --compress \
+            noble-server-cloudimg-amd64.img \
+            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2"
+
+      - name: Split archive for release
+        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
+        run: |
+          set -eux
+          mkdir -p dist
+          # WHY: qcow2 は sparsify+compress 後でも 2GB を超え得るため
+          # build.yml と同じ 2000M split でリリースアセットに載せる。
+          split --verbose --bytes=2000M --suffix-length=1 --numeric-suffixes=1 \
+            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
+            "dist/devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.part"
+          sha256sum dist/devtool-noble-amd64-*.qcow2.part* > dist/sha256sum-qcow2.txt
+          ls -lah dist/
+
+      - name: Generate sha256 checksum (non-release runs)
+        if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
+        run: |
+          sha256sum "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
+            | tee "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256"
+
+      - name: Upload build artifact (non-release runs)
+        if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devtool-noble-amd64-qcow2
+          path: |
+            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2
+            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256
+          retention-days: 7
+
+      - name: Determine release type
+        id: release_type
+        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "DRAFT=false" >> "$GITHUB_ENV"
+            echo "PRERELEASE=false" >> "$GITHUB_ENV"
+            echo "MAKE_LATEST=true" >> "$GITHUB_ENV"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "DRAFT=false" >> "$GITHUB_ENV"
+            echo "PRERELEASE=true" >> "$GITHUB_ENV"
+            echo "MAKE_LATEST=false" >> "$GITHUB_ENV"
+          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            echo "DRAFT=false" >> "$GITHUB_ENV"
+            echo "PRERELEASE=false" >> "$GITHUB_ENV"
+            echo "MAKE_LATEST=true" >> "$GITHUB_ENV"
+          else
+            echo "DRAFT=false" >> "$GITHUB_ENV"
+            echo "PRERELEASE=false" >> "$GITHUB_ENV"
+            echo "MAKE_LATEST=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Attach qcow2 to Release
+        # WHY: build.yml が同一 COMMIT_SHORT_SHA で release を先に作成する
+        # 前提。softprops/action-gh-release は tag が既存でも upsert で
+        # asset を追加してくれるため、WSL2 tar と qcow2 が同一 release に
+        # 並ぶ。
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
+        with:
+          name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
+          tag_name: ${{ env.COMMIT_SHORT_SHA }}
+          generate_release_notes: true
+          draft: ${{ env.DRAFT }}
+          prerelease: ${{ env.PRERELEASE }}
+          make_latest: ${{ env.MAKE_LATEST }}
+          files: |
+            ./dist/*
+
+      - name: Write PVE import command to summary
+        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## PVE Import Command
+
+          \`\`\`bash
+          tag='${{ env.COMMIT_SHORT_SHA }}'
+          repo='${{ github.repository }}'
+          base="https://github.com/\$repo/releases/download/\$tag"
+          for i in 1 2; do
+            curl --location --fail --remote-name \
+              "\$base/devtool-noble-amd64-\$tag.qcow2.part\$i" || break
+          done
+          cat devtool-noble-amd64-\$tag.qcow2.part* > devtool-noble-amd64-\$tag.qcow2
+          qm importdisk <VMID> devtool-noble-amd64-\$tag.qcow2 <STORAGE>
+          \`\`\`
+
+          詳細な PVE 取り込み手順: \`docs/guides/pve-import.md\`
+          EOF
