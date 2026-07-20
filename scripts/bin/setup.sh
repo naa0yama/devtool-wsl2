@@ -51,6 +51,10 @@ is_wsl2() {
 
 # Detect setup mode: outputs one of "wsl2", "vm", or "remote".
 # Override via DEVTOOL_SETUP_MODE for test seams and manual control.
+# Contract: override values are returned verbatim without validation
+# (raw detector). main() dispatch is responsible for rejecting unknown modes.
+# WHY-NOT: DMI 判定のみ — QEMU/KVM で sys_vendor が空のケースがあり
+# systemd-detect-virt --vm を second-chance に置く。
 detect_setup_mode() {
 	if [[ -n "${DEVTOOL_SETUP_MODE:-}" ]]; then
 		printf '%s' "${DEVTOOL_SETUP_MODE}"
@@ -981,8 +985,8 @@ main() {
 		vm)     main_vm ;;
 		remote) main_remote ;;
 		*)
-			log_info "Unknown DEVTOOL_SETUP_MODE='${mode}', falling back to remote"
-			main_remote
+			printf 'ERROR: unknown setup mode %q (expected wsl2|vm|remote); set DEVTOOL_SETUP_MODE explicitly\n' "${mode}" >&2
+			exit 1
 			;;
 	esac
 }
