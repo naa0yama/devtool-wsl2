@@ -46,6 +46,47 @@ jobs:
           calculatedSha=$(git rev-parse --short ${{ github.sha }})
           echo "COMMIT_SHORT_SHA=$calculatedSha" >> "$GITHUB_ENV"
 
+      - name: Free disk space on runner
+        run: |
+          # WHY: ubuntu-latest (24.04) runner ships with ~14GB free of ~28GB
+          # total, but guestmount + chroot apt-get install for resolute
+          # (26.04) exhausts the disk mid-provision (dpkg "No space left
+          # on device" at hicolor-icon-theme). Removing pre-installed
+          # toolchains we do not use reclaims ~40GB before provisioning.
+          # WHY-NOT: qemu-img resize on the guest image — bloats the
+          # released artifact and requires growpart inside chroot; the
+          # shortage is on the host runner backing the FUSE mount, not
+          # the guest fs (which has headroom of its own).
+          # WHY-NOT: apt-get clean between chroot install phases — only
+          # reclaims the apt cache (hundreds of MB); actual shortage is
+          # multi-GB of installed package trees.
+          # WHY-NOT: jlumbroso/free-disk-space action — introduces a
+          # third-party action pin to audit; inline rm is auditable and
+          # scoped to what qcow2 build actually needs.
+          # Approximate reclaim on ubuntu-24.04 (image 20260714): dotnet
+          # 17G, android 11G, CodeQL 5.4G, ghc+ghcup 2.7G, swift 2G,
+          # hostedtoolcache/go 1.5-2G, Ruby 1G, PyPy ~1G, apt purges
+          # ~2G, docker prune ~3G, /mnt/swapfile 4G.
+          echo "Before:" && df --human-readable /
+          sudo swapoff --all
+          sudo rm --force /mnt/swapfile
+          sudo rm --recursive --force \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/hostedtoolcache/CodeQL \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/share/swift \
+            /opt/hostedtoolcache/go \
+            /opt/hostedtoolcache/Ruby \
+            /opt/hostedtoolcache/PyPy
+          sudo apt-get purge --yes --auto-remove \
+            '^dotnet-.*' '^llvm-.*' 'php.*' '^mongodb-.*' \
+            google-cloud-cli firefox google-chrome-stable \
+            azure-cli mono-devel || true
+          sudo docker system prune --all --force --volumes || true
+          echo "After:" && df --human-readable /
+
       - name: Install image build tools
         run: |
           sudo apt-get update
