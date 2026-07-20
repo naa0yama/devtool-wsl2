@@ -54,10 +54,48 @@ detect_env() {
 }
 
 _stage0_provision_fetch() {
+	if [[ -n "${DEVTOOL_SKIP_PROVISION_FETCH:-}" ]]; then
+		log_info "DEVTOOL_SKIP_PROVISION_FETCH: skipping provision asset fetch"
+		return 0
+	fi
 	log_info "Fetching provision asset to ${DEVTOOL_PROVISION_DIR}"
 	mkdir -p "${DEVTOOL_PROVISION_DIR}"
 	curl -fsSL "${PROVISION_ASSET_URL}" | tar -xz --strip-components=1 -C "${DEVTOOL_PROVISION_DIR}"
 	chmod -R a+rX "${DEVTOOL_PROVISION_DIR}"
+}
+
+# WHY-NOT: inline docker install in _phase1_system — separating into _install_docker
+#   lets a future 20-docker-engine.sh refactor replace only this function without
+#   touching phase logic.
+_install_docker() {
+	local provision_dir="${1}"
+	bash "${provision_dir}/system/20-docker-engine.sh"
+}
+
+_phase1_system() {
+	[[ "${EUID}" -eq 0 ]] || { log_erro "phase 1 requires root"; exit 1; }
+
+	local username="${DEFAULT_USERNAME:-user}"
+	local provision_dir="${DEVTOOL_PROVISION_DIR}"
+
+	log_info "=== phase 1: system layer ==="
+
+	log_info "Creating user ${username} (shell=/bin/bash) via 15-user.sh"
+	DEVTOOL_USER_SHELL=/bin/bash bash "${provision_dir}/system/15-user.sh"
+
+	log_info "Installing docker-ce via 20-docker-engine.sh"
+	_install_docker "${provision_dir}"
+
+	log_info "=== phase 1 complete; re-exec as ${username} for phase 2 ==="
+	exec sudo -u "${username}" \
+		DEVTOOL_PROVISION_DIR="${provision_dir}" \
+		DEVTOOL_BOOTSTRAP_PHASE=2 \
+		bash "${DEVTOOL_BOOTSTRAP_SELF}"
+}
+
+_phase2_user() {
+	log_erro "phase 2 not yet implemented (Cycle 9)"
+	exit 1
 }
 
 main() {
@@ -194,6 +232,19 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 		exec bash "${DEVTOOL_BOOTSTRAP_SELF}" "$@"
 	fi
 
-	_stage0_provision_fetch
-	main "$@"
+	case "${DEVTOOL_BOOTSTRAP_PHASE:-}" in
+		1)
+			DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
+			_stage0_provision_fetch
+			_phase1_system
+			;;
+		2)
+			DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
+			_phase2_user
+			;;
+		*)
+			_stage0_provision_fetch
+			main "$@"
+			;;
+	esac
 fi
