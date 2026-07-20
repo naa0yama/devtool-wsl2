@@ -926,6 +926,28 @@ main_wsl2() {
 	log_info "To re-run setup: rm ${LOCK_FILE}"
 }
 
+main_vm() {
+	echo "============================================"
+	echo " Devtool Setup (VM / qcow2 golden image)"
+	echo "============================================"
+	echo ""
+
+	check_dependencies
+	install_docker_cleanup_timer
+	install_cargo_sweep_timer_wsl2
+
+	# Create lock file
+	mkdir -p "$(dirname "${LOCK_FILE}")"
+	date -Iseconds > "${LOCK_FILE}"
+
+	echo ""
+	echo "============================================"
+	echo " Setup complete!"
+	echo "============================================"
+	echo ""
+	log_info "To re-run setup: rm ${LOCK_FILE}"
+}
+
 main_remote() {
 	echo "============================================"
 	echo " GPG/SSH Agent Tools Setup (Remote)"
@@ -952,11 +974,17 @@ main_remote() {
 }
 
 main() {
-	if is_wsl2; then
-		main_wsl2
-	else
-		main_remote
-	fi
+	local mode
+	mode="$(detect_setup_mode)"
+	case "${mode}" in
+		wsl2)   main_wsl2 ;;
+		vm)     main_vm ;;
+		remote) main_remote ;;
+		*)
+			log_info "Unknown DEVTOOL_SETUP_MODE='${mode}', falling back to remote"
+			main_remote
+			;;
+	esac
 }
 
 main "$@"
