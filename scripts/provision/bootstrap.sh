@@ -53,6 +53,13 @@ detect_env() {
 	fi
 }
 
+_stage0_provision_fetch() {
+	log_info "Fetching provision asset to ${DEVTOOL_PROVISION_DIR}"
+	mkdir -p "${DEVTOOL_PROVISION_DIR}"
+	curl -fsSL "${PROVISION_ASSET_URL}" | tar -xz --strip-components=1 -C "${DEVTOOL_PROVISION_DIR}"
+	chmod -R a+rX "${DEVTOOL_PROVISION_DIR}"
+}
+
 main() {
 	# --- Resolve DEVTOOL_ENV (auto-detect if unset) ---
 	: "${DEVTOOL_ENV:=$(detect_env)}"
@@ -175,5 +182,18 @@ main() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+	DEVTOOL_BOOTSTRAP_SELF="${DEVTOOL_BOOTSTRAP_SELF:-/tmp/devtool-bootstrap.sh}"
+	UPSTREAM="${UPSTREAM:-https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main}"
+	PROVISION_ASSET_URL="${PROVISION_ASSET_URL:-https://github.com/naa0yama/devtool-wsl2/releases/latest/download/devtool-provision.tar.gz}"
+	DEVTOOL_PROVISION_DIR="${DEVTOOL_PROVISION_DIR:-/tmp/devtool-provision}"
+
+	if [[ "${BASH_SOURCE[0]}" != "${DEVTOOL_BOOTSTRAP_SELF}" && ! -f "${DEVTOOL_BOOTSTRAP_SELF}" ]]; then
+		log_info "Self-downloading bootstrap to ${DEVTOOL_BOOTSTRAP_SELF}"
+		curl -fsSL "${UPSTREAM}/scripts/provision/bootstrap.sh" -o "${DEVTOOL_BOOTSTRAP_SELF}"
+		chmod +x "${DEVTOOL_BOOTSTRAP_SELF}"
+		exec bash "${DEVTOOL_BOOTSTRAP_SELF}" "$@"
+	fi
+
+	_stage0_provision_fetch
 	main "$@"
 fi
