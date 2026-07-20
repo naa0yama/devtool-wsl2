@@ -74,20 +74,71 @@ jobs:
             --output noble-server-cloudimg-amd64.img \
             https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 
-      - name: Apply provisioning with virt-customize
+      - name: Provision image via guestmount + chroot
         run: |
-          # Copy scripts/ into /opt/devtool/ inside the image so that
-          # bootstrap.sh resolves provision_root as
-          # PROVISION_ROOT(/opt/devtool) + /scripts/provision — matching
-          # the src + "/scripts/provision" logic in bootstrap.sh.
-          sudo -E virt-customize \
+          set -euxo pipefail
+          MNT=$(mktemp -d)
+          sudo guestmount \
             --add noble-server-cloudimg-amd64.img \
-            --mkdir /opt/devtool \
-            --copy-in "${{ github.workspace }}/scripts:/opt/devtool" \
-            --run-command \
-              'DEVTOOL_ENV=vm PROVISION_ROOT=/opt/devtool bash /opt/devtool/scripts/provision/bootstrap.sh' \
-            --run-command \
-              'bash /opt/devtool/scripts/image/finalize.sh'
+            --mount /dev/sda1 \
+            --rw "${MNT}"
+          trap 'sudo guestunmount "${MNT}" || true; rmdir "${MNT}" || true' EXIT
+
+          # copy scripts/ into image at /opt/devtool/scripts
+          sudo mkdir -p "${MNT}/opt/devtool"
+          sudo cp -a "${{ github.workspace }}/scripts" "${MNT}/opt/devtool/"
+
+          # use host resolv.conf inside chroot for DNS; restore on exit
+          sudo cp "${MNT}/etc/resolv.conf" "${MNT}/etc/resolv.conf.orig" 2>/dev/null || true
+          sudo cp /etc/resolv.conf "${MNT}/etc/resolv.conf"
+
+          # 2-phase provisioning: system (uid=0) then user (uid=1100)
+          sudo "${{ github.workspace }}/scripts/image/provision-chroot.sh" \
+            "${MNT}" "/opt/devtool/scripts"
+
+          # finalize: cloud-init clean, machine-id, SSH keys, apt cache, logs
+          sudo chroot "${MNT}" bash \
+            < "${{ github.workspace }}/scripts/image/finalize.sh"
+
+          # remove host DNS from deployed image
+          sudo rm -f "${MNT}/etc/resolv.conf"
+          if [ -f "${MNT}/etc/resolv.conf.orig" ]; then
+            sudo mv "${MNT}/etc/resolv.conf.orig" "${MNT}/etc/resolv.conf"
+          fi
+
+      - name: Verify provisioned image (step summary)
+        run: |
+          set -euxo pipefail
+          MNT=$(mktemp -d)
+          sudo guestmount \
+            --add noble-server-cloudimg-amd64.img \
+            --mount /dev/sda1 \
+            --ro "${MNT}"
+          trap 'sudo guestunmount "${MNT}" || true; rmdir "${MNT}" || true' EXIT
+
+          {
+            echo "## Provisioned Image Verification"
+            echo ""
+            echo "### user 存在確認 (uid=1100)"
+            echo '```'
+            sudo grep '^user:' "${MNT}/etc/passwd" || echo "MISSING"
+            echo '```'
+            echo ""
+            echo "### ubuntu user 不在確認"
+            echo '```'
+            if sudo grep -q '^ubuntu:' "${MNT}/etc/passwd"; then
+              echo "FAIL: ubuntu user still exists"
+              exit 1
+            else
+              echo "OK: ubuntu user removed"
+            fi
+            echo '```'
+            echo ""
+            echo "### mise install 確認"
+            echo '```'
+            sudo ls -la "${MNT}/home/user/.local/bin/mise" || echo "MISSING"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compress with virt-sparsify
         run: |

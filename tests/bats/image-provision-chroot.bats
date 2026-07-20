@@ -23,32 +23,35 @@ setup_file() {
 	docker exec "${CONTAINER}" bash -c \
 		'printf "#!/usr/bin/env bash\nshift\nexec \"\$@\"\n" > /usr/sbin/chroot && chmod 0755 /usr/sbin/chroot'
 
+	# provision-chroot.sh is called as: provision-chroot.sh /mnt/test /scripts
+	# PROVISION_DIR = ${MNT}${SCRIPTS_ROOT}/provision = /mnt/test/scripts/provision
 	docker exec "${CONTAINER}" mkdir -p \
-		/scripts/provision/system \
-		/scripts/provision/user
+		/mnt/test/scripts/provision/system \
+		/mnt/test/scripts/provision/user
 
 	for name in 10-apt-base 15-user 20-docker-engine 40-cleanup-ubuntu 40-fish 60-wsl-conf; do
 		# shellcheck disable=SC2016 # $(id -u) must expand inside the generated script, not here
-		printf '#!/usr/bin/env bash\necho "system:%s:$(id -u)" >> /tmp/provision.log\n' "${name}" \
+		printf '#!/usr/bin/env bash\necho "system:%s:$(id -u)" >> /tmp/provision.log\necho "PROVISION_ROOT=${PROVISION_ROOT}" >> /tmp/env.log\n' "${name}" \
 			> "${BATS_FILE_TMPDIR}/sys-${name}.sh"
 		docker cp "${BATS_FILE_TMPDIR}/sys-${name}.sh" \
-			"${CONTAINER}:/scripts/provision/system/${name}.sh"
-		docker exec "${CONTAINER}" chmod 0755 "/scripts/provision/system/${name}.sh"
+			"${CONTAINER}:/mnt/test/scripts/provision/system/${name}.sh"
+		docker exec "${CONTAINER}" chmod 0755 "/mnt/test/scripts/provision/system/${name}.sh"
 	done
 
 	for name in 10-mise-install 20-bashrc 30-fish-config 40-mise-config; do
 		# shellcheck disable=SC2016 # $(id -u) must expand inside the generated script, not here
-		printf '#!/usr/bin/env bash\necho "user:%s:$(id -u)" >> /tmp/provision.log\n' "${name}" \
+		printf '#!/usr/bin/env bash\necho "user:%s:$(id -u)" >> /tmp/provision.log\necho "USER_PROVISION_ROOT=${PROVISION_ROOT}" >> /tmp/env.log\n' "${name}" \
 			> "${BATS_FILE_TMPDIR}/usr-${name}.sh"
 		docker cp "${BATS_FILE_TMPDIR}/usr-${name}.sh" \
-			"${CONTAINER}:/scripts/provision/user/${name}.sh"
-		docker exec "${CONTAINER}" chmod 0755 "/scripts/provision/user/${name}.sh"
+			"${CONTAINER}:/mnt/test/scripts/provision/user/${name}.sh"
+		docker exec "${CONTAINER}" chmod 0755 "/mnt/test/scripts/provision/user/${name}.sh"
 	done
 
-	# create bind-mount targets and world-writable log for multi-uid writes
+	# create bind-mount targets and world-writable logs for multi-uid writes
 	docker exec "${CONTAINER}" mkdir -p \
 		/mnt/test/dev/pts /mnt/test/proc /mnt/test/sys
 	docker exec "${CONTAINER}" install -m 0666 /dev/null /tmp/provision.log
+	docker exec "${CONTAINER}" install -m 0666 /dev/null /tmp/env.log
 
 	docker cp "${SCRIPT_SH}" "${CONTAINER}:/provision-chroot.sh"
 	docker exec "${CONTAINER}" chmod +x /provision-chroot.sh
@@ -92,5 +95,21 @@ teardown_file() {
 	CONTAINER=$(cat "${BATS_FILE_TMPDIR}/container_id")
 	run docker exec "${CONTAINER}" \
 		grep --fixed-strings 'system:40-cleanup-ubuntu:' /tmp/provision.log
+	assert_success
+}
+
+@test "chroot_bash_receives_provision_root_env_when_system_phase_runs" {
+	docker info &>/dev/null || skip "docker not available"
+	CONTAINER=$(cat "${BATS_FILE_TMPDIR}/container_id")
+	run docker exec "${CONTAINER}" \
+		grep --fixed-strings 'PROVISION_ROOT=/scripts/provision' /tmp/env.log
+	assert_success
+}
+
+@test "chroot_sudo_preserves_provision_root_when_user_phase_runs" {
+	docker info &>/dev/null || skip "docker not available"
+	CONTAINER=$(cat "${BATS_FILE_TMPDIR}/container_id")
+	run docker exec "${CONTAINER}" \
+		grep --fixed-strings 'USER_PROVISION_ROOT=/scripts/provision' /tmp/env.log
 	assert_success
 }
