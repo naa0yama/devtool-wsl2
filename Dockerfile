@@ -67,8 +67,7 @@ ARG DEBIAN_FRONTEND \
 
 USER ${DEFAULT_USERNAME}
 
-RUN /opt/devtool/provision/user/10-bashrc.sh
-RUN /opt/devtool/provision/user/20-bashrc-devtool.sh
+RUN /opt/devtool/provision/user/20-bashrc.sh
 RUN /opt/devtool/provision/user/30-fish-config.sh
 
 SHELL [ "/bin/bash", "-c" ]
