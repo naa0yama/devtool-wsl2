@@ -90,14 +90,14 @@ jobs:
             echo "KVM not available — TCG software emulation"
           fi
 
-      - name: Download Ubuntu noble (24.04 LTS) cloud image
+      - name: Download Ubuntu resolute (26.04 LTS) cloud image
         run: |
-          # noble = Ubuntu 24.04 LTS (26.04 LTS 未 GA のため fallback 使用); /current/ always resolves to latest
+          # resolute = Ubuntu 26.04 LTS; /current/ always resolves to latest
           # stable point-release build (no date-pin — update is intentional)
           curl --silent --show-error --fail --location \
             --retry 3 --retry-delay 5 --retry-connrefused \
-            --output noble-server-cloudimg-amd64.img \
-            https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+            --output resolute-server-cloudimg-amd64.img \
+            https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img
 
       - name: Apply provisioning with virt-customize
         run: |
@@ -105,8 +105,18 @@ jobs:
           # bootstrap.sh resolves provision_root as
           # PROVISION_ROOT(/opt/devtool) + /scripts/provision — matching
           # the src + "/scripts/provision" logic in bootstrap.sh.
+          # WHY: libguestfs slirp fallback (see shadow-passt step) uses the
+          # host's DNS, but ubuntu-latest runners point resolv.conf at
+          # 127.0.0.53 (systemd-resolved stub), which the appliance cannot
+          # reach. Overwrite /etc/resolv.conf inside the guest before any
+          # network-dependent provisioning step (apt-get update etc.).
+          # The cloud-image ships resolv.conf as a symlink to
+          # /run/systemd/resolve/stub-resolv.conf; `rm -f` breaks the
+          # symlink so the subsequent write lands on the real file.
           sudo -E virt-customize \
-            --add noble-server-cloudimg-amd64.img \
+            --add resolute-server-cloudimg-amd64.img \
+            --run-command \
+              'rm -f /etc/resolv.conf && printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" > /etc/resolv.conf' \
             --mkdir /opt/devtool \
             --copy-in "${{ github.workspace }}/scripts:/opt/devtool" \
             --run-command \
@@ -118,8 +128,8 @@ jobs:
         run: |
           sudo -E virt-sparsify \
             --compress \
-            noble-server-cloudimg-amd64.img \
-            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2"
+            resolute-server-cloudimg-amd64.img \
+            "devtool-resolute-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2"
 
       - name: Split archive for release
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
@@ -129,25 +139,25 @@ jobs:
           # WHY: qcow2 は sparsify+compress 後でも 2GB を超え得るため
           # build.yml と同じ 2000M split でリリースアセットに載せる。
           split --verbose --bytes=2000M --suffix-length=1 --numeric-suffixes=1 \
-            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
-            "dist/devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.part"
-          sha256sum dist/devtool-noble-amd64-*.qcow2.part* > dist/sha256sum-qcow2.txt
+            "devtool-resolute-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
+            "dist/devtool-resolute-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.part"
+          sha256sum dist/devtool-resolute-amd64-*.qcow2.part* > dist/sha256sum-qcow2.txt
           ls -lah dist/
 
       - name: Generate sha256 checksum (non-release runs)
         if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
         run: |
-          sha256sum "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
-            | tee "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256"
+          sha256sum "devtool-resolute-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
+            | tee "devtool-resolute-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256"
 
       - name: Upload build artifact (non-release runs)
         if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: devtool-noble-amd64-qcow2
+          name: devtool-resolute-amd64-qcow2
           path: |
-            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2
-            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256
+            devtool-resolute-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2
+            devtool-resolute-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256
           retention-days: 7
 
       - name: Determine release type
@@ -201,10 +211,10 @@ jobs:
           base="https://github.com/\$repo/releases/download/\$tag"
           for i in 1 2; do
             curl --location --fail --remote-name \
-              "\$base/devtool-noble-amd64-\$tag.qcow2.part\$i" || break
+              "\$base/devtool-resolute-amd64-\$tag.qcow2.part\$i" || break
           done
-          cat devtool-noble-amd64-\$tag.qcow2.part* > devtool-noble-amd64-\$tag.qcow2
-          qm importdisk <VMID> devtool-noble-amd64-\$tag.qcow2 <STORAGE>
+          cat devtool-resolute-amd64-\$tag.qcow2.part* > devtool-resolute-amd64-\$tag.qcow2
+          qm importdisk <VMID> devtool-resolute-amd64-\$tag.qcow2 <STORAGE>
           \`\`\`
 
           詳細な PVE 取り込み手順: \`docs/guides/pve-import.md\`
