@@ -52,7 +52,15 @@ jobs:
             libguestfs-tools \
             qemu-utils \
             cloud-image-utils \
-            passt
+            passt \
+            apparmor-utils
+          # WHY: Ubuntu 24.04 ships an AppArmor profile for passt that
+          # denies libguestfs's tmp-scoped invocation, causing passt to
+          # exit status 1 immediately after binding its UNIX socket. Move
+          # the profile to complain mode so libguestfs can spawn passt.
+          if [ -f /etc/apparmor.d/usr.bin.passt ]; then
+            sudo aa-complain /etc/apparmor.d/usr.bin.passt || true
+          fi
 
       - name: Check KVM availability
         run: |
