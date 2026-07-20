@@ -151,8 +151,13 @@ qm clone "${VMID}" "${NEW_VMID}" \
 
 ## 6. cloud-init 設定
 
-ゴールデンイメージは uid:1100 のユーザーを system 層で焼き込み済み。
-cloud-init は username 変更と SSH 鍵注入のみを担当する。
+ゴールデンイメージは uid:1100 の `user` を system 層で焼き込み済み。
+cloud-init の username は任意に設定可能 (デフォルト `ubuntu` 維持を推奨)。
+
+**vestibule パターン**: cloud-init 側ユーザー (例: `ubuntu`) を玄関 (vestibule) として使い、
+初回ログイン後に `sudo su - user` で uid=1100 の焼き込みユーザーへ切り替える。
+uid=1100 の `user` は cloud-init とは独立して system 層で焼き込み済みのため、
+cloud-init 設定で username を `user` に合わせる必要はない。
 
 ### 6a. PVE GUI / qm set での注入
 
@@ -160,27 +165,38 @@ cloud-init は username 変更と SSH 鍵注入のみを担当する。
 SSH_KEY_PATH="${HOME}/.ssh/id_ed25519.pub"
 
 qm set "${NEW_VMID}" \
-  --ciuser user \
+  --ciuser ubuntu \
   --sshkey "${SSH_KEY_PATH}" \
   --ipconfig0 ip=dhcp
 ```
 
-### 6b. cloud-init cloud.cfg での uid 整合 (参考)
+> `--ciuser ubuntu` はデフォルトを明示する例。PVE テンプレート利用者は
+> 好みの username に変更可能。`--ciuser user` は不要。
 
-VM 内の `/etc/cloud/cloud.cfg` で uid:1100 との整合を取る場合:
+### 6b. vestibule から uid=1100 への切り替え
 
-```yaml
-users:
-  - name: user
-    uid: 1100
-    no-create-home: true
-    shell: /usr/bin/fish
-    ssh_authorized_keys:
-      - ssh-ed25519 AAAA... user@example.net
+VM 起動後、cloud-init username (例: `ubuntu`) で SSH ログインし、
+`sudo su - user` で uid=1100 の焼き込みユーザーへ redirect する。
+
+```bash
+# vestibule (cloud-init username) でログイン
+ssh ubuntu@198.51.100.10
+
+# uid=1100 の焼き込みユーザーへ切り替え
+sudo su - user
 ```
 
-`no-create-home: true` により、焼き込み済みホームディレクトリを
-cloud-init が上書きしない。
+### 6c. vestibule cleanup (任意)
+
+uid=1100 の `user` 側で SSH 鍵配置が確認できたら、vestibule ユーザーは不要になる。
+root 権限で手動削除する。
+
+```bash
+sudo userdel --remove ubuntu
+```
+
+> **注意**: 削除は任意。自動化は行わない — 運用中の vestibule を
+> false positive で削除するリスクがあるため。
 
 ---
 
@@ -189,14 +205,17 @@ cloud-init が上書きしない。
 VM 起動後、以下を確認する。
 
 ```bash
-# SSH ログイン確認 (VM の IP は環境に合わせて変更)
-ssh user@198.51.100.10
+# vestibule (cloud-init username) で SSH ログイン
+ssh ubuntu@198.51.100.10
+
+# uid=1100 ユーザーへ切り替え
+sudo su - user
 ```
 
 | 項目 | コマンド | 期待結果 |
 |------|----------|----------|
 | UID 確認 | `id` | `uid=1100(user)` |
-| シェル確認 | `echo $SHELL` | `/usr/bin/fish` |
+| シェル確認 | `echo $SHELL` | `/bin/bash` |
 | mise 動作 | `mise --version` | バージョン文字列が返る |
 | docker 動作 | `docker info` | エラーなし |
 | fish 動作 | `fish --version` | バージョン文字列が返る |
