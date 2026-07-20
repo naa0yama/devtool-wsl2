@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
 # Tests for scripts/image/provision-chroot.sh (seam-2: bind mount + dry-run)
+bats_require_minimum_version 1.5.0
 
 load '../helpers/common'
 
@@ -44,13 +45,14 @@ teardown() {
 	fi
 }
 
-@test "provision_chroot_mounts_all_bind_targets_when_dry_run" {
-	sudo "${PROVISION_CHROOT_SH}" --dry-run "${MNT}" /tmp/dummy_scripts
-	mountpoint -q "${MNT}/dev"
-	mountpoint -q "${MNT}/proc"
-	mountpoint -q "${MNT}/sys"
-	mountpoint -q "${MNT}/dev/pts"
-	mountpoint -q "${MNT}/run/systemd/resolve/stub-resolv.conf"
+@test "provision_chroot_exits_cleanly_and_unmounts_when_dry_run" {
+	run sudo "${PROVISION_CHROOT_SH}" --dry-run "${MNT}" /tmp/dummy_scripts
+	assert_success
+	run ! mountpoint -q "${MNT}/dev" 2>/dev/null
+	run ! mountpoint -q "${MNT}/proc" 2>/dev/null
+	run ! mountpoint -q "${MNT}/sys" 2>/dev/null
+	run ! mountpoint -q "${MNT}/dev/pts" 2>/dev/null
+	run ! mountpoint -q "${MNT}/run/systemd/resolve/stub-resolv.conf" 2>/dev/null
 }
 
 @test "provision_chroot_preserves_resolv_symlink_when_dry_run" {
