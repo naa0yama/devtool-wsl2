@@ -61,3 +61,62 @@ teardown() {
 	assert_success
 	assert_output "../run/systemd/resolve/stub-resolv.conf"
 }
+
+# Helper: copy bash + touch + dynamic dependencies into MNT for chroot tests.
+# Pre-creates /opt/marker so dummy scripts need only touch (not mkdir).
+_setup_chroot_rootfs() {
+	local mnt="$1"
+	mkdir -p "${mnt}/bin" "${mnt}/usr/bin" \
+		"${mnt}/lib/x86_64-linux-gnu" "${mnt}/lib64" \
+		"${mnt}/opt/marker"
+	sudo cp /bin/bash "${mnt}/bin/bash"
+	sudo ln -sf bash "${mnt}/bin/sh"
+	sudo cp /usr/bin/env "${mnt}/usr/bin/env"
+	sudo cp /bin/touch "${mnt}/bin/touch"
+	sudo cp /lib/x86_64-linux-gnu/libc.so.6 "${mnt}/lib/x86_64-linux-gnu/"
+	sudo cp /lib/x86_64-linux-gnu/libtinfo.so.6 "${mnt}/lib/x86_64-linux-gnu/"
+	sudo cp /lib64/ld-linux-x86-64.so.2 "${mnt}/lib64/"
+}
+
+@test "provision_chroot_executes_bootstrap_in_chroot_when_not_dry_run" {
+	[[ -x /bin/bash ]] || skip "no /bin/bash for chroot fixture"
+	[[ -f /lib/x86_64-linux-gnu/libtinfo.so.6 ]] || skip "missing libtinfo.so.6 for chroot fixture"
+
+	_setup_chroot_rootfs "${MNT}"
+
+	SCRIPTS_SRC=$(mktemp --directory)
+	mkdir -p "${SCRIPTS_SRC}/provision" "${SCRIPTS_SRC}/image"
+	printf '#!/bin/sh\ntouch /opt/marker/bootstrap-ran\n' \
+		> "${SCRIPTS_SRC}/provision/bootstrap.sh"
+	printf '#!/bin/sh\ntouch /opt/marker/finalize-ran\n' \
+		> "${SCRIPTS_SRC}/image/finalize.sh"
+	chmod +x "${SCRIPTS_SRC}/provision/bootstrap.sh" \
+		"${SCRIPTS_SRC}/image/finalize.sh"
+
+	run sudo "${PROVISION_CHROOT_SH}" "${MNT}" "${SCRIPTS_SRC}"
+	assert_success
+
+	[[ -f "${MNT}/opt/marker/bootstrap-ran" ]]
+	[[ -f "${MNT}/opt/marker/finalize-ran" ]]
+
+	run readlink "${MNT}/etc/resolv.conf"
+	assert_success
+	assert_output "../run/systemd/resolve/stub-resolv.conf"
+
+	run ! mountpoint -q "${MNT}/dev" 2>/dev/null
+	run ! mountpoint -q "${MNT}/proc" 2>/dev/null
+	run ! mountpoint -q "${MNT}/sys" 2>/dev/null
+	run ! mountpoint -q "${MNT}/dev/pts" 2>/dev/null
+	run ! mountpoint -q "${MNT}/run/systemd/resolve/stub-resolv.conf" 2>/dev/null
+
+	rm -rf "${SCRIPTS_SRC}"
+}
+
+@test "provision_chroot_aborts_when_resolv_symlink_is_broken" {
+	rm "${MNT}/etc/resolv.conf"
+	touch "${MNT}/etc/resolv.conf"
+
+	run sudo "${PROVISION_CHROOT_SH}" "${MNT}" /tmp/dummy_scripts
+	[ "${status}" -ne 0 ]
+	[[ "${output}" =~ resolv.conf ]]
+}
