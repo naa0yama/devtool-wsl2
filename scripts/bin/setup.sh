@@ -49,6 +49,38 @@ is_wsl2() {
 	grep -Eqi 'microsoft|wsl' /proc/version 2>/dev/null
 }
 
+# Detect setup mode: outputs one of "wsl2", "vm", or "remote".
+# Override via DEVTOOL_SETUP_MODE for test seams and manual control.
+detect_setup_mode() {
+	if [[ -n "${DEVTOOL_SETUP_MODE:-}" ]]; then
+		printf '%s' "${DEVTOOL_SETUP_MODE}"
+		return
+	fi
+
+	if grep -Eqi 'microsoft|wsl' /proc/version 2>/dev/null; then
+		printf 'wsl2'
+		return
+	fi
+
+	local vendor
+	vendor="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)"
+	if printf '%s' "${vendor}" | grep -Eqi 'QEMU|KVM|VMware|VirtualBox|Xen|innotek'; then
+		printf 'vm'
+		return
+	fi
+
+	if command -v systemd-detect-virt >/dev/null 2>&1; then
+		local virt_type
+		virt_type="$(systemd-detect-virt --vm 2>/dev/null || true)"
+		if [[ -n "${virt_type}" && "${virt_type}" != "none" ]]; then
+			printf 'vm'
+			return
+		fi
+	fi
+
+	printf 'remote'
+}
+
 # Convert Windows paths: remove CR, convert backslashes to forward slashes
 fixpath() {
 	# shellcheck disable=SC1003
