@@ -44,10 +44,15 @@ jobs:
       - name: Install image build tools
         run: |
           sudo apt-get update
+          # WHY: passt is explicit — libguestfs 1.52+ appliance uses passt for
+          # user-mode net; on ubuntu-24.04 GH runner it is sometimes NOT pulled
+          # transitively via libguestfs-tools, causing "passt exited with
+          # status 1" at appliance boot.
           sudo apt-get install --no-install-recommends --yes \
             libguestfs-tools \
             qemu-utils \
-            cloud-image-utils
+            cloud-image-utils \
+            passt
 
       - name: Check KVM availability
         run: |
@@ -80,6 +85,9 @@ jobs:
           # bootstrap.sh resolves provision_root as
           # PROVISION_ROOT(/opt/devtool) + /scripts/provision — matching
           # the src + "/scripts/provision" logic in bootstrap.sh.
+          # LIBGUESTFS_DEBUG/TRACE surface passt stderr next time this fails
+          export LIBGUESTFS_DEBUG=1
+          export LIBGUESTFS_TRACE=1
           sudo -E virt-customize \
             --add noble-server-cloudimg-amd64.img \
             --mkdir /opt/devtool \
