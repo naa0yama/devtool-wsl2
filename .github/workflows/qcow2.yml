@@ -23,13 +23,18 @@ on:
 
 jobs:
   qcow2:
-    name: Build qcow2 golden image
+    name: Build qcow2 golden image (${{ matrix.series }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [noble, resolute]
     env:
       COMMIT_SHORT_SHA: "null"
+      ASSET_NAME: ""
 
     steps:
       - name: Checkout from repository
@@ -47,105 +52,152 @@ jobs:
           sudo apt-get install --no-install-recommends --yes \
             libguestfs-tools \
             qemu-utils \
-            cloud-image-utils
+            cloud-image-utils \
+            fuse3
+
+      - name: Shadow passt to force libguestfs slirp fallback
+        run: |
+          # WHY: libguestfs 1.52+ (ubuntu-24.04+) prefers passt when
+          # `passt --help` exits 0/1. passt self-drops to `nobody`, then
+          # fails to write its pidfile inside libguestfs's 0700 root:root
+          # tmpdir → "passt exited status 1" → appliance launch aborts.
+          # No env var / config toggle exists to disable passt selection
+          # (probe is pure PATH-based in launch-direct.c). Shadow passt
+          # with an exit-2 stub so passt_runnable() returns false and
+          # libguestfs falls back to slirp.
+          # Placement: /usr/local/bin appears BEFORE /usr/bin in the
+          # default sudoers `secure_path` on ubuntu-24.04, so `sudo
+          # virt-customize` finds the stub first regardless of caller
+          # PATH. A previous fix put the stub in /usr/local/libexec and
+          # exported PATH — sudo stripped the export via secure_path,
+          # so libguestfs still spawned /usr/bin/passt.
+          # WHY-NOT: ubuntu-22.04 pin — kicks the can to 26.04 upgrade.
+          # WHY-NOT: LIBGUESTFS_BACKEND=direct — selects qemu launcher,
+          #   not the network backend. Passt is still probed.
+          # WHY-NOT: aa-complain on /etc/apparmor.d/usr.bin.passt — real
+          #   failure is filesystem EACCES on 0700 root tmpdir, not AppArmor.
+          # WHY-NOT: sudo --preserve-env=PATH — requires sudoers
+          #   `env_keep+="PATH"` which is not the runner default; brittle.
+          printf '#!/bin/sh\nexit 2\n' \
+            | sudo tee /usr/local/bin/passt > /dev/null
+          sudo chmod +x /usr/local/bin/passt
+          # Verify sudo resolves the shadow (exit 2 expected)
+          sudo -n which passt
+          sudo -n passt --help && rc=$? || rc=$?
+          echo "shadow passt exit=${rc} (expect 2)"
+          test "${rc}" = "2"
 
       - name: Check KVM availability
         run: |
-          # WHY: force direct backend unconditionally. libvirt has no daemon
-          # on GH-hosted runners, and even with KVM present the libguestfs
-          # default networking path (passt) fails on GH runners with
-          # "passt exited with status 1" (nested-virt / netns constraints).
-          # direct backend + QEMU user-net avoids passt entirely; KVM is
-          # still used when /dev/kvm exists.
-          echo "LIBGUESTFS_BACKEND=direct" >> "$GITHUB_ENV"
           if [ -e /dev/kvm ]; then
-            echo "KVM available — direct backend with hardware acceleration"
+            echo "KVM available — hardware acceleration"
             sudo chmod 0666 /dev/kvm || true
           else
-            echo "KVM not available — direct backend with TCG software emulation"
+            echo "KVM not available — TCG software emulation"
           fi
 
-      - name: Download Ubuntu noble (24.04 LTS) cloud image
+      - name: Download Ubuntu ${{ matrix.series }} cloud image
         run: |
-          # noble = Ubuntu 24.04 LTS (26.04 LTS 未 GA のため fallback 使用); /current/ always resolves to latest
-          # stable point-release build (no date-pin — update is intentional)
+          # WHY-NOT: hardcode URL — series-map.sh is the single source of truth;
+          #   adding a new series or changing the URL pattern touches only that file
+          # shellcheck disable=SC1091
+          source scripts/image/series-map.sh
+          url=$(series_to_url "${{ matrix.series }}")
           curl --silent --show-error --fail --location \
             --retry 3 --retry-delay 5 --retry-connrefused \
-            --output noble-server-cloudimg-amd64.img \
-            https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+            --output "${{ matrix.series }}-server-cloudimg-amd64.img" \
+            "${url}"
 
-      - name: Provision image via guestmount + chroot
+      - name: Expand guest cloud image to 20G
         run: |
-          set -euxo pipefail
-          MNT=$(mktemp -d)
-          sudo guestmount \
-            --add noble-server-cloudimg-amd64.img \
-            --mount /dev/sda1 \
-            --rw "${MNT}"
-          trap 'sudo guestunmount "${MNT}" || true; rmdir "${MNT}" || true' EXIT
+          # WHY: Ubuntu cloud images ship with a ~2.2G root partition and
+          # rely on cloud-init `growpart` at first boot to fill the backing
+          # device. Provisioning via guestmount + chroot never boots the
+          # guest, so apt-get installs write into the small original
+          # partition → dpkg "No space left on device" mid-install.
+          # `virt-resize --expand` grows the last partition + resizes the
+          # filesystem before mount. Final `virt-sparsify --compress`
+          # (post-provision) reclaims free blocks so the released artifact
+          # stays small.
+          # WHY-NOT: growpart + resize2fs inside chroot — cloud-init not
+          #   present, and the partition table itself must be rewritten
+          #   before the fs can be grown; virt-resize does both atomically.
+          # WHY-NOT: qemu-img resize alone — resizes the disk file only,
+          #   not the partition or filesystem inside it. dpkg still hits
+          #   the 2.2G partition boundary.
+          # WHY-NOT: host runner cleanup (previous PR #431) — measured
+          #   host had 89G free before and 120G after cleanup while the
+          #   failure persisted; shortage is inside the guest, not host.
+          img="${{ matrix.series }}-server-cloudimg-amd64.img"
+          qemu-img create -f qcow2 -o preallocation=off expanded.img 20G
+          sudo virt-resize --expand /dev/sda1 "${img}" expanded.img
+          mv expanded.img "${img}"
+          sudo qemu-img info "${img}" | grep --extended-regexp "^(virtual size|disk size)"
 
-          # copy scripts/ into image at /opt/devtool/scripts
-          sudo mkdir -p "${MNT}/opt/devtool"
-          sudo cp -a "${{ github.workspace }}/scripts" "${MNT}/opt/devtool/"
-
-          # use host resolv.conf inside chroot for DNS; restore on exit
-          sudo cp "${MNT}/etc/resolv.conf" "${MNT}/etc/resolv.conf.orig" 2>/dev/null || true
-          sudo cp /etc/resolv.conf "${MNT}/etc/resolv.conf"
-
-          # 2-phase provisioning: system (uid=0) then user (uid=1100)
-          sudo "${{ github.workspace }}/scripts/image/provision-chroot.sh" \
-            "${MNT}" "/opt/devtool/scripts"
-
-          # finalize: cloud-init clean, machine-id, SSH keys, apt cache, logs
-          sudo chroot "${MNT}" bash \
-            < "${{ github.workspace }}/scripts/image/finalize.sh"
-
-          # remove host DNS from deployed image
-          sudo rm -f "${MNT}/etc/resolv.conf"
-          if [ -f "${MNT}/etc/resolv.conf.orig" ]; then
-            sudo mv "${MNT}/etc/resolv.conf.orig" "${MNT}/etc/resolv.conf"
-          fi
-
-      - name: Verify provisioned image (step summary)
+      - name: Provision via guestmount + chroot
         run: |
-          set -euxo pipefail
-          MNT=$(mktemp -d)
-          sudo guestmount \
-            --add noble-server-cloudimg-amd64.img \
-            --mount /dev/sda1 \
-            --ro "${MNT}"
-          trap 'sudo guestunmount "${MNT}" || true; rmdir "${MNT}" || true' EXIT
-
-          {
-            echo "## Provisioned Image Verification"
-            echo ""
-            echo "### user 存在確認 (uid=1100)"
-            echo '```'
-            sudo grep '^user:' "${MNT}/etc/passwd" || echo "MISSING"
-            echo '```'
-            echo ""
-            echo "### ubuntu user 不在確認"
-            echo '```'
-            if sudo grep -q '^ubuntu:' "${MNT}/etc/passwd"; then
-              echo "FAIL: ubuntu user still exists"
-              exit 1
-            else
-              echo "OK: ubuntu user removed"
-            fi
-            echo '```'
-            echo ""
-            echo "### mise install 確認"
-            echo '```'
-            sudo ls -la "${MNT}/home/user/.local/bin/mise" || echo "MISSING"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          # WHY: guestmount + chroot allows bind-mounting the host resolver stub
+          #   into the guest without modifying the guest fs's resolv.conf symlink.
+          #   Guest image remains stock Ubuntu (bit-for-bit except provisioning).
+          # WHY-NOT: virt-customize — libguestfs appliance DNS resolution fails;
+          #   the appliance boots in its own network namespace and cannot reach
+          #   archive.ubuntu.com even with slirp fallback when resolv.conf is
+          #   missing inside the appliance environment.
+          # WHY-NOT: rewrite runner /etc/resolv.conf — unverified whether
+          #   libguestfs slirp snapshots the file before appliance boot; chroot
+          #   approach is upstream-recommended and surgically scoped.
+          sudo mkdir -p /mnt/qcow2
+          sudo -E guestmount \
+            --add "${{ matrix.series }}-server-cloudimg-amd64.img" \
+            --inspector --rw /mnt/qcow2
+          sudo bash scripts/image/provision-chroot.sh \
+            /mnt/qcow2 \
+            "${{ github.workspace }}/scripts"
+          # Minimize final qcow2 size before sparsify: apt cache, package
+          # lists, temp files, and log bodies contribute several hundred MB
+          # each and are all reproducible / non-essential for the deployed VM.
+          # WHY-NOT: run inside provision-chroot.sh — bats tests assert that
+          #   script's exact behavior; cleanup is workflow concern, not
+          #   provisioning contract.
+          sudo chroot /mnt/qcow2 apt-get clean
+          sudo find /mnt/qcow2/var/lib/apt/lists -mindepth 1 -delete
+          sudo find /mnt/qcow2/var/tmp -mindepth 1 -delete
+          sudo find /mnt/qcow2/tmp -mindepth 1 -delete
+          sudo find /mnt/qcow2/var/log -type f -exec truncate --size=0 {} +
+          sudo guestunmount /mnt/qcow2
 
       - name: Compress with virt-sparsify
         run: |
+          # shellcheck disable=SC1091
+          source scripts/image/series-map.sh
+          asset=$(series_to_asset_name "${{ matrix.series }}" "${{ env.COMMIT_SHORT_SHA }}")
           sudo -E virt-sparsify \
             --compress \
-            noble-server-cloudimg-amd64.img \
-            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2"
+            "${{ matrix.series }}-server-cloudimg-amd64.img" \
+            "${asset}"
+          echo "ASSET_NAME=${asset}" >> "$GITHUB_ENV"
+
+      - name: Report qcow2 and guest filesystem size
+        run: |
+          # WHY: Track host-view qcow2 size (compressed disk) alongside
+          # guest-view filesystem usage (df inside the image) to inform
+          # whether the 20G expansion in the resize step can be reduced
+          # to 15G or 10G. Both numbers are surfaced in the Actions GUI
+          # step summary so the ratio is auditable across runs.
+          {
+            echo "## qcow2 size report (${{ matrix.series }})"
+            echo ''
+            echo '### Host view (on-disk qcow2)'
+            echo '```'
+            ls -l --human-readable "${ASSET_NAME}"
+            qemu-img info "${ASSET_NAME}"
+            echo '```'
+            echo ''
+            echo '### Guest view (filesystem inside image)'
+            echo '```'
+            sudo virt-df --human-readable --add "${ASSET_NAME}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Split archive for release
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
@@ -155,71 +207,40 @@ jobs:
           # WHY: qcow2 は sparsify+compress 後でも 2GB を超え得るため
           # build.yml と同じ 2000M split でリリースアセットに載せる。
           split --verbose --bytes=2000M --suffix-length=1 --numeric-suffixes=1 \
-            "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
-            "dist/devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.part"
-          sha256sum dist/devtool-noble-amd64-*.qcow2.part* > dist/sha256sum-qcow2.txt
+            "${{ env.ASSET_NAME }}" \
+            "dist/${{ env.ASSET_NAME }}.part"
+          sha256sum dist/*.qcow2.part* > dist/sha256sum-qcow2.txt
           ls -lah dist/
 
       - name: Generate sha256 checksum (non-release runs)
         if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
         run: |
-          sha256sum "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2" \
-            | tee "devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256"
+          sha256sum "${{ env.ASSET_NAME }}" \
+            | tee "${{ env.ASSET_NAME }}.sha256"
+
+      - name: Upload build artifact (release runs)
+        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devtool-${{ matrix.series }}-amd64-qcow2
+          path: dist/
+          retention-days: 7
 
       - name: Upload build artifact (non-release runs)
         if: ${{ ! (github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: devtool-noble-amd64-qcow2
+          name: devtool-${{ matrix.series }}-amd64-qcow2
           path: |
-            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2
-            devtool-noble-amd64-${{ env.COMMIT_SHORT_SHA }}.qcow2.sha256
+            ${{ env.ASSET_NAME }}
+            ${{ env.ASSET_NAME }}.sha256
           retention-days: 7
-
-      - name: Determine release type
-        id: release_type
-        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
-        run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=false" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=true" >> "$GITHUB_ENV"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=true" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=false" >> "$GITHUB_ENV"
-          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=false" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=true" >> "$GITHUB_ENV"
-          else
-            echo "DRAFT=false" >> "$GITHUB_ENV"
-            echo "PRERELEASE=false" >> "$GITHUB_ENV"
-            echo "MAKE_LATEST=false" >> "$GITHUB_ENV"
-          fi
-
-      - name: Attach qcow2 to Release
-        # WHY: build.yml が同一 COMMIT_SHORT_SHA で release を先に作成する
-        # 前提。softprops/action-gh-release は tag が既存でも upsert で
-        # asset を追加してくれるため、WSL2 tar と qcow2 が同一 release に
-        # 並ぶ。
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
-        if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
-        with:
-          name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}
-          tag_name: ${{ env.COMMIT_SHORT_SHA }}
-          generate_release_notes: true
-          draft: ${{ env.DRAFT }}
-          prerelease: ${{ env.PRERELEASE }}
-          make_latest: ${{ env.MAKE_LATEST }}
-          files: |
-            ./dist/*
 
       - name: Write PVE import command to summary
         if: ${{ github.event.inputs.create_release == 'true' || github.event.pull_request.merged == true || github.event_name == 'schedule' }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## PVE Import Command
+          ## PVE Import Command (${{ matrix.series }})
 
           \`\`\`bash
           tag='${{ env.COMMIT_SHORT_SHA }}'
@@ -227,10 +248,10 @@ jobs:
           base="https://github.com/\$repo/releases/download/\$tag"
           for i in 1 2; do
             curl --location --fail --remote-name \
-              "\$base/devtool-noble-amd64-\$tag.qcow2.part\$i" || break
+              "\$base/devtool-${{ matrix.series }}-amd64-\$tag.qcow2.part\$i" || break
           done
-          cat devtool-noble-amd64-\$tag.qcow2.part* > devtool-noble-amd64-\$tag.qcow2
-          qm importdisk <VMID> devtool-noble-amd64-\$tag.qcow2 <STORAGE>
+          cat devtool-${{ matrix.series }}-amd64-\$tag.qcow2.part* > devtool-${{ matrix.series }}-amd64-\$tag.qcow2
+          qm importdisk <VMID> devtool-${{ matrix.series }}-amd64-\$tag.qcow2 <STORAGE>
           \`\`\`
 
           詳細な PVE 取り込み手順: \`docs/guides/pve-import.md\`
