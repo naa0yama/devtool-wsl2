@@ -33,28 +33,15 @@ ENV TZ=Asia/Tokyo
 
 SHELL [ "/bin/bash", "-c" ]
 
-COPY scripts			/opt/devtool
+COPY scripts			/opt/devtool/scripts
 COPY .bashrc.d/devtool/	/opt/devtool/.bashrc.d/devtool/
 
+# WHY-NOT: RUN 個別行維持 — 新 script 追加時に Dockerfile 修正が必要になる
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt,sharing=locked \
-	/opt/devtool/provision/system/10-apt-base.sh
-
-RUN /opt/devtool/provision/system/50-user.sh
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-	--mount=type=cache,target=/var/lib/apt,sharing=locked \
-	/opt/devtool/provision/system/20-docker-engine.sh
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-	--mount=type=cache,target=/var/lib/apt,sharing=locked \
-	/opt/devtool/provision/system/30-mise.sh
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-	--mount=type=cache,target=/var/lib/apt,sharing=locked \
-	/opt/devtool/provision/system/40-fish.sh
-
-RUN DEVTOOL_ENV=wsl2 /opt/devtool/provision/system/60-wsl-conf.sh
+	for f in /opt/devtool/scripts/provision/system/*.sh; do \
+		DEVTOOL_ENV=wsl2 PROVISION_ROOT=/opt/devtool/scripts/provision bash "${f}"; \
+	done
 
 
 #- -----------------------------------------------------------------------------
@@ -67,8 +54,10 @@ ARG DEBIAN_FRONTEND \
 
 USER ${DEFAULT_USERNAME}
 
-RUN /opt/devtool/provision/user/20-bashrc.sh
-RUN /opt/devtool/provision/user/30-fish-config.sh
+# WHY-NOT: RUN 個別行維持 — 新 script 追加時に Dockerfile 修正が必要になる
+RUN for f in /opt/devtool/scripts/provision/user/*.sh; do \
+		DEVTOOL_ENV=wsl2 PROVISION_ROOT=/opt/devtool/scripts/provision bash "${f}"; \
+	done
 
 SHELL [ "/bin/bash", "-c" ]
 USER ${DEFAULT_USERNAME}
