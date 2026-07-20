@@ -44,38 +44,39 @@ jobs:
       - name: Install image build tools
         run: |
           sudo apt-get update
-          # WHY: passt is explicit — libguestfs 1.52+ appliance uses passt for
-          # user-mode net; on ubuntu-24.04 GH runner it is sometimes NOT pulled
-          # transitively via libguestfs-tools, causing "passt exited with
-          # status 1" at appliance boot.
           sudo apt-get install --no-install-recommends --yes \
             libguestfs-tools \
             qemu-utils \
-            cloud-image-utils \
-            passt \
-            apparmor-utils
-          # WHY: Ubuntu 24.04 ships an AppArmor profile for passt that
-          # denies libguestfs's tmp-scoped invocation, causing passt to
-          # exit status 1 immediately after binding its UNIX socket. Move
-          # the profile to complain mode so libguestfs can spawn passt.
-          if [ -f /etc/apparmor.d/usr.bin.passt ]; then
-            sudo aa-complain /etc/apparmor.d/usr.bin.passt || true
-          fi
+            cloud-image-utils
+
+      - name: Shadow passt to force libguestfs slirp fallback
+        run: |
+          # WHY: libguestfs 1.52+ (ubuntu-24.04+) prefers passt when
+          # `passt --help` exits 0/1. passt self-drops to `nobody`, then
+          # fails to write its pidfile inside libguestfs's 0700 root:root
+          # tmpdir → "passt exited status 1" → appliance launch aborts.
+          # No env var / config toggle exists to disable passt selection
+          # (probe is pure PATH-based in launch-direct.c). Shadow passt
+          # with an exit-2 stub earlier in PATH so passt_runnable() returns
+          # false and libguestfs falls back to slirp.
+          # WHY-NOT: ubuntu-22.04 pin — kicks the can to 26.04 upgrade.
+          # WHY-NOT: LIBGUESTFS_BACKEND=direct — selects qemu launcher,
+          #   not the network backend. Passt is still probed.
+          # WHY-NOT: aa-complain on /etc/apparmor.d/usr.bin.passt — real
+          #   failure is filesystem EACCES on 0700 root tmpdir, not AppArmor.
+          sudo mkdir -p /usr/local/libexec/no-passt
+          printf '#!/bin/sh\nexit 2\n' \
+            | sudo tee /usr/local/libexec/no-passt/passt > /dev/null
+          sudo chmod +x /usr/local/libexec/no-passt/passt
+          echo "PATH=/usr/local/libexec/no-passt:${PATH}" >> "$GITHUB_ENV"
 
       - name: Check KVM availability
         run: |
-          # WHY: force direct backend unconditionally. libvirt has no daemon
-          # on GH-hosted runners, and even with KVM present the libguestfs
-          # default networking path (passt) fails on GH runners with
-          # "passt exited with status 1" (nested-virt / netns constraints).
-          # direct backend + QEMU user-net avoids passt entirely; KVM is
-          # still used when /dev/kvm exists.
-          echo "LIBGUESTFS_BACKEND=direct" >> "$GITHUB_ENV"
           if [ -e /dev/kvm ]; then
-            echo "KVM available — direct backend with hardware acceleration"
+            echo "KVM available — hardware acceleration"
             sudo chmod 0666 /dev/kvm || true
           else
-            echo "KVM not available — direct backend with TCG software emulation"
+            echo "KVM not available — TCG software emulation"
           fi
 
       - name: Download Ubuntu noble (24.04 LTS) cloud image
@@ -93,9 +94,6 @@ jobs:
           # bootstrap.sh resolves provision_root as
           # PROVISION_ROOT(/opt/devtool) + /scripts/provision — matching
           # the src + "/scripts/provision" logic in bootstrap.sh.
-          # LIBGUESTFS_DEBUG/TRACE surface passt stderr next time this fails
-          export LIBGUESTFS_DEBUG=1
-          export LIBGUESTFS_TRACE=1
           sudo -E virt-customize \
             --add noble-server-cloudimg-amd64.img \
             --mkdir /opt/devtool \
