@@ -223,27 +223,46 @@ main() {
 	# --- user layer ---
 	log_info "=== user layer (uid=${DEFAULT_USERNAME}) ==="
 
+	# Pre-flight diagnostics: if the user-layer exec fails again, the following
+	# probes localize the cause (bash path, user home, sudoers state, id
+	# resolution) in a single CI run rather than requiring another iteration.
+	if [[ -z "${DRY_RUN}" && "${EUID}" -eq 0 ]]; then
+		log_info "user-layer pre-flight diagnostics"
+		{
+			echo "--- bash binaries ---"
+			ls -l /bin/bash /usr/bin/bash 2>&1 || true
+			echo "--- runuser / sudo binaries ---"
+			command -v runuser || true
+			command -v sudo || true
+			echo "--- user identity ---"
+			getent passwd "${DEFAULT_USERNAME}" 2>&1 || true
+			ls -ld "/home/${DEFAULT_USERNAME}" 2>&1 || true
+			echo "--- runuser sanity ---"
+			runuser -u "${DEFAULT_USERNAME}" -- id 2>&1 || true
+		} >&2
+	fi
+
 	_run_as_user() {
 		if [[ -n "${DRY_RUN}" ]]; then
 			log_info "[DRY_RUN] (${DEFAULT_USERNAME}) $*"
 		elif [[ "${EUID}" -eq 0 ]]; then
-			# WHY-NOT: su - user -c — going through a login shell (${DEFAULT_USERNAME}'s
-			#   login shell = /usr/bin/fish) can fail with "Permission denied" inside
-			#   the chroot (observed on qcow2 resolute). sudo -u -H bypasses the
-			#   login shell and execs bash directly, avoiding the issue. Unifies
-			#   the path with the phase 2 implementation (bootstrap.sh _phase2_user
-			#   → exec sudo -u user).
-			# WHY-NOT: sudo ... env ... — inside the chroot, sudo's PATH lookup
-			#   returned "sudo: 'env': command not found" (observed on qcow2
-			#   resolute). sudo parses VAR=val itself, so env(1) is unnecessary.
-			# WHY-NOT: /bin/bash — on resolute chroot, sudo returned
-			#   "'/bin/bash': command not found" (observed on qcow2 resolute,
-			#   run 29802135056). Likely unresolved /bin symlink or sudo policy.
-			#   /usr/bin/bash is the real path under merged-usr Ubuntu and always
-			#   exists.
-			sudo --user "${DEFAULT_USERNAME}" --set-home \
-				"DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
-				"PROVISION_ROOT=${provision_root}" /usr/bin/bash "$1"
+			# WHY-NOT: sudo --user — sudo(8) inside the qcow2 chroot returns
+			#   "command not found" for both bareword (env) and absolute
+			#   (/bin/bash, /usr/bin/bash) targets across noble and resolute
+			#   (runs 29802135056, 29823063661). Suspected cause: sudo's
+			#   pre-exec faccessat/PAM/policy path is broken by the chroot
+			#   environment (no /proc PAM state, secure_path resolution).
+			#   runuser (util-linux) uses setuid directly, no PAM, no
+			#   secure_path — bypasses the entire failure surface.
+			# WHY-NOT: su - user -c — login shell (user's default = fish
+			#   on baked images) triggers "Permission denied" in chroot.
+			# WHY-NOT: chroot --userspec — moves user switching out of
+			#   bootstrap.sh into provision-chroot.sh, breaking the shared
+			#   path with the non-chroot WSL2/bare Ubuntu code.
+			HOME="/home/${DEFAULT_USERNAME}" runuser -u "${DEFAULT_USERNAME}" -- \
+				env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
+				"PROVISION_ROOT=${provision_root}" "HOME=/home/${DEFAULT_USERNAME}" \
+				bash "$1"
 		else
 			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "$1"
 		fi
