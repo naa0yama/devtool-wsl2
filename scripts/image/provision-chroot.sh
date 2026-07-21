@@ -43,10 +43,10 @@ SCRIPTS_SRC="${2:?scripts source dir required}"
 
 exec_provision_in_chroot() {
 	local mnt="$1" scripts_src="$2"
-	# WHY-NOT: cp scripts to /tmp inside chroot — /opt/devtool は bootstrap.sh の PROVISION_ROOT 既定値と整合、無駄な移動を避ける
+	# WHY-NOT: cp scripts to /tmp inside chroot — /opt/devtool は bootstrap.sh の DEVTOOL_SRC_ROOT 既定値と整合、無駄な移動を避ける
 	mkdir -p "${mnt}/opt/devtool"
 	cp -a "${scripts_src}" "${mnt}/opt/devtool/scripts"
-	chroot "${mnt}" env DEVTOOL_ENV=vm PROVISION_ROOT=/opt/devtool \
+	chroot "${mnt}" env DEVTOOL_ENV=vm DEVTOOL_SRC_ROOT=/opt/devtool \
 		bash /opt/devtool/scripts/provision/bootstrap.sh
 	chroot "${mnt}" bash /opt/devtool/scripts/image/finalize.sh
 }

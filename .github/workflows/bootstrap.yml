@@ -30,14 +30,16 @@ jobs:
         env:
           DEVTOOL_ENV: container
           DEVTOOL_SKIP_FETCH: "1"
-          PROVISION_ROOT: ${{ github.workspace }}/scripts/provision
+          DEVTOOL_SRC_ROOT: ${{ github.workspace }}
+          DEVTOOL_BOOTSTRAP_SELF: ${{ github.workspace }}/scripts/provision/bootstrap.sh
         run: |
-          bash scripts/provision/bootstrap.sh
+          bash "${GITHUB_WORKSPACE}/scripts/provision/bootstrap.sh"
 
       - name: Run bootstrap (idempotency check — second pass)
         env:
           DEVTOOL_ENV: container
           DEVTOOL_SKIP_FETCH: "1"
-          PROVISION_ROOT: ${{ github.workspace }}/scripts/provision
+          DEVTOOL_SRC_ROOT: ${{ github.workspace }}
+          DEVTOOL_BOOTSTRAP_SELF: ${{ github.workspace }}/scripts/provision/bootstrap.sh
         run: |
-          bash scripts/provision/bootstrap.sh
+          bash "${GITHUB_WORKSPACE}/scripts/provision/bootstrap.sh"

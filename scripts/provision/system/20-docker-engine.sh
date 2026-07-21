@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euxo pipefail
+set -euo pipefail
+[[ -n "${DEVTOOL_TRACE:-}" ]] && set -x
 
 # Logger
 log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
@@ -47,14 +48,19 @@ $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" \
 fi
 
 # --- apt update + install ---
-log_info "apt update + install Docker Engine packages"
-_apt_get --yes update
-_apt_get --yes install --no-install-recommends \
-	docker-ce \
-	docker-ce-cli \
-	containerd.io \
-	docker-buildx-plugin \
-	docker-compose-plugin
+# WHY-NOT: docker.io — Ubuntu's packaging lags behind; missing buildx-plugin and compose-plugin; pinned to older versions
+if dpkg --status docker-ce &>/dev/null; then
+	log_info "docker-ce already installed, skipping apt install"
+else
+	log_info "apt update + install Docker Engine packages"
+	_apt_get --yes update
+	_apt_get --yes install --no-install-recommends \
+		docker-ce \
+		docker-ce-cli \
+		containerd.io \
+		docker-buildx-plugin \
+		docker-compose-plugin
+fi
 
 # --- Add user to docker group ---
 log_info "Add ${DEFAULT_USERNAME} to docker group"

@@ -53,6 +53,73 @@ detect_env() {
 	fi
 }
 
+_stage0_provision_fetch() {
+	if [[ -n "${DEVTOOL_SKIP_PROVISION_FETCH:-}" ]]; then
+		log_info "DEVTOOL_SKIP_PROVISION_FETCH: skipping provision asset fetch"
+		return 0
+	fi
+	log_info "Fetching provision asset to ${DEVTOOL_PROVISION_DIR}"
+	mkdir -p "${DEVTOOL_PROVISION_DIR}"
+	curl -fsSL "${PROVISION_ASSET_URL}" | tar -xz --strip-components=1 -C "${DEVTOOL_PROVISION_DIR}"
+	chmod -R a+rX "${DEVTOOL_PROVISION_DIR}"
+}
+
+# WHY-NOT: inline docker install in _phase1_system — separating into _install_docker
+#   lets a future 20-docker-engine.sh refactor replace only this function without
+#   touching phase logic.
+_install_docker() {
+	local provision_dir="${1}"
+	bash "${provision_dir}/system/20-docker-engine.sh"
+}
+
+_phase1_system() {
+	[[ "${EUID}" -eq 0 ]] || { log_erro "phase 1 requires root"; exit 1; }
+
+	local username="${DEFAULT_USERNAME:-user}"
+	local provision_dir="${DEVTOOL_PROVISION_DIR}"
+
+	log_info "=== phase 1: system layer ==="
+
+	log_info "Creating user ${username} (shell=/bin/bash) via 15-user.sh"
+	DEVTOOL_USER_SHELL=/bin/bash bash "${provision_dir}/system/15-user.sh"
+
+	log_info "Installing docker-ce via 20-docker-engine.sh"
+	_install_docker "${provision_dir}"
+
+	log_info "=== phase 1 complete; re-exec as ${username} for phase 2 ==="
+	exec sudo -u "${username}" \
+		DEVTOOL_PROVISION_DIR="${provision_dir}" \
+		DEVTOOL_BOOTSTRAP_PHASE=2 \
+		bash "${DEVTOOL_BOOTSTRAP_SELF}"
+}
+
+_phase2_user() {
+	local euid_val="${DEVTOOL_PHASE2_UID:-${EUID}}"
+	if [[ "${euid_val}" -ne 1100 ]]; then
+		log_erro "phase 2 must run as uid 1100 (got ${euid_val})"
+		exit 1
+	fi
+
+	local provision_dir="${DEVTOOL_PROVISION_DIR}"
+	log_info "=== phase 2: user layer ==="
+
+	while IFS= read -r -d '' script; do
+		log_info "user: ${script}"
+		bash "${script}"
+	done < <(find "${provision_dir}/user" -maxdepth 1 -name '*.sh' -print0 | sort -z)
+
+	local username="${DEFAULT_USERNAME}"
+	if ! id -nG "${username}" | grep -qw "docker" 2>/dev/null; then
+		local docker_gid
+		# WHY-NOT: 固定 gid ハードコード — 上流 docker パッケージ更新で gid が変わると追従コスト発生
+		docker_gid="$(getent group docker | cut --delimiter=: --fields=3)"
+		sudo usermod --append --groups docker "${username}"
+		log_info "docker group join: gid=${docker_gid}"
+	fi
+
+	log_info "=== phase 2 complete ==="
+}
+
 main() {
 	# --- Resolve DEVTOOL_ENV (auto-detect if unset) ---
 	: "${DEVTOOL_ENV:=$(detect_env)}"
@@ -71,14 +138,14 @@ main() {
 	DEVTOOL_REPO="${DEVTOOL_REPO:-naa0yama/devtool-wsl2}"
 	DRY_RUN="${DRY_RUN:-}"
 	DEVTOOL_SKIP_FETCH="${DEVTOOL_SKIP_FETCH:-}"
-	PROVISION_ROOT="${PROVISION_ROOT:-}"
+	DEVTOOL_SRC_ROOT="${DEVTOOL_SRC_ROOT:-}"
 
 	DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
 
-	if [[ -n "${PROVISION_ROOT}" ]]; then
+	if [[ -n "${DEVTOOL_SRC_ROOT}" ]]; then
 		# Test seam: use specified root directly, skip fetch
-		src="${PROVISION_ROOT}"
-		log_info "PROVISION_ROOT override: ${src}"
+		src="${DEVTOOL_SRC_ROOT}"
+		log_info "DEVTOOL_SRC_ROOT override: ${src}"
 	else
 		if [[ "${EUID}" -eq 0 ]]; then
 			DEVTOOL_CACHE="${DEVTOOL_CACHE:-/var/cache/devtool}"
@@ -150,7 +217,7 @@ main() {
 
 	while IFS= read -r -d '' script; do
 		log_info "system: ${script}"
-		_run_as_root env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" bash "${script}"
+		_run_as_root env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "${script}"
 	done < <(find "${provision_root}/system" -maxdepth 1 -name '*.sh' -print0 | sort -z)
 
 	# --- user layer ---
@@ -160,9 +227,9 @@ main() {
 		if [[ -n "${DRY_RUN}" ]]; then
 			log_info "[DRY_RUN] (${DEFAULT_USERNAME}) $*"
 		elif [[ "${EUID}" -eq 0 ]]; then
-			su - "${DEFAULT_USERNAME}" -c "DEVTOOL_ENV='${DEVTOOL_ENV}' DRY_RUN='${DRY_RUN}' bash '$1'"
+			su - "${DEFAULT_USERNAME}" -c "DEVTOOL_ENV='${DEVTOOL_ENV}' DRY_RUN='${DRY_RUN}' PROVISION_ROOT='${provision_root}' bash '$1'"
 		else
-			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" bash "$1"
+			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "$1"
 		fi
 	}
 
@@ -175,5 +242,30 @@ main() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-	main "$@"
+	DEVTOOL_BOOTSTRAP_SELF="${DEVTOOL_BOOTSTRAP_SELF:-/tmp/devtool-bootstrap.sh}"
+	UPSTREAM="${UPSTREAM:-https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main}"
+	PROVISION_ASSET_URL="${PROVISION_ASSET_URL:-https://github.com/naa0yama/devtool-wsl2/releases/latest/download/devtool-provision.tar.gz}"
+	DEVTOOL_PROVISION_DIR="${DEVTOOL_PROVISION_DIR:-/tmp/devtool-provision}"
+
+	if [[ "${BASH_SOURCE[0]}" != "${DEVTOOL_BOOTSTRAP_SELF}" && ! -f "${DEVTOOL_BOOTSTRAP_SELF}" ]]; then
+		log_info "Self-downloading bootstrap to ${DEVTOOL_BOOTSTRAP_SELF}"
+		curl -fsSL "${UPSTREAM}/scripts/provision/bootstrap.sh" -o "${DEVTOOL_BOOTSTRAP_SELF}"
+		chmod +x "${DEVTOOL_BOOTSTRAP_SELF}"
+		exec bash "${DEVTOOL_BOOTSTRAP_SELF}" "$@"
+	fi
+
+	case "${DEVTOOL_BOOTSTRAP_PHASE:-}" in
+		1)
+			DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
+			_stage0_provision_fetch
+			_phase1_system
+			;;
+		2)
+			DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
+			_phase2_user
+			;;
+		*)
+			main "$@"
+			;;
+	esac
 fi
