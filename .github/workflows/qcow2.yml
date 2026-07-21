@@ -1,10 +1,11 @@
 ---
-name: qcow2 Golden Image Build
+name: Build qcow2
 
-# WHY: virt-customize は KVM 有無で 10〜60 分かかるため、PR opened/sync
-# 全てで走らせるとコスト過大。release 生成 3 パス (workflow_dispatch /
-# merged PR / schedule) のみに絞り、build.yml の WSL2 リリースと lockstep で
-# qcow2 asset をリリースに添付する。
+# WHY: virt-customize takes 10-60 minutes depending on KVM availability, so
+# running it on every PR opened/sync is too expensive. Limit to the three
+# release-producing paths (workflow_dispatch / merged PR / schedule) and
+# attach the qcow2 asset to the release in lockstep with build.yml's WSL2
+# release.
 on:
   pull_request:
     branches:
@@ -23,7 +24,7 @@ on:
 
 jobs:
   qcow2:
-    name: Build qcow2 golden image (${{ matrix.series }})
+    name: Build qcow2 (${{ matrix.series }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -207,8 +208,8 @@ jobs:
         run: |
           set -eux
           mkdir -p dist
-          # WHY: qcow2 は sparsify+compress 後でも 2GB を超え得るため
-          # build.yml と同じ 2000M split でリリースアセットに載せる。
+          # WHY: qcow2 can exceed 2GB even after sparsify+compress, so use the
+          # same 2000M split as build.yml when attaching release assets.
           split --verbose --bytes=2000M --suffix-length=1 --numeric-suffixes=1 \
             "${{ env.ASSET_NAME }}" \
             "dist/${{ env.ASSET_NAME }}.part"
@@ -257,5 +258,5 @@ jobs:
           qm importdisk <VMID> devtool-${{ matrix.series }}-amd64-\$tag.qcow2 <STORAGE>
           \`\`\`
 
-          詳細な PVE 取り込み手順: \`docs/guides/pve-import.md\`
+          Detailed PVE import procedure: \`docs/guides/pve-import.md\`
           EOF

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# $3 = 1: branch checkout, 0: file checkout
+if [ "${3:-0}" != "1" ]; then
+    exit 0
+fi
+
+# Skip if not inside a tmux session; ${TMUX:-} avoids set -u error when TMUX is unset.
+if [ -z "${TMUX:-}" ]; then
+    exit 0
+fi
+
+# Resolve repo name: prefer remote URL (works in devcontainer where workspaceFolder is /app).
+# Split into two sed pipes: BSD sed errors on -E + semicolon chaining (GNU-only).
+_git_user=$(git config github.user 2>/dev/null || printf '')
+remote_url=$(git remote get-url origin 2>/dev/null || printf '')
+# repo="" init + deferred [ -z "$repo" ] below is a unified fallback for two cases:
+# (1) no remote URL, (2) remote URL did not parse to a valid owner/repo.
+# Do not duplicate the basename fallback back into both if/else branches.
+repo=""
+if [ -n "$remote_url" ]; then
+    owner_repo=$(printf '%s' "$remote_url" | sed -E 's#^.+[:/]([^/]+)/([^/]+)$#\1/\2#' | sed 's#\.git$##')
+    # Guard: sed passes the raw URL unchanged when the pattern does not match
+    # (non-GitHub host, local path, etc.), so validate before use.
+    if [[ "$owner_repo" =~ ^[^/]+/[^/]+$ ]]; then
+        if [ -n "$_git_user" ] && [ "${owner_repo%%/*}" = "$_git_user" ]; then
+            repo="${owner_repo##*/}"
+        else
+            repo="$owner_repo"
+        fi
+    fi
+fi
+# exit 0 (not || true): no usable repo name means nothing to set; skip silently.
+if [ -z "$repo" ]; then
+    repo=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null) || exit 0
+fi
+
+branch=$(git branch --show-current 2>/dev/null) || exit 0
+[ -n "$repo" ] && [ -n "$branch" ] || exit 0
+
+# || true: set-option -p targets the current pane and may fail if unsupported; best-effort.
+tmux set-option -p @pane-name "${repo}:${branch}" 2>/dev/null || true

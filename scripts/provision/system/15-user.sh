@@ -7,14 +7,15 @@ log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
 DEFAULT_UID="${DEFAULT_UID:-1100}"
 DEFAULT_GID="${DEFAULT_GID:-1100}"
 DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
-# WHY-NOT: /bin/bash 固定 — bare Ubuntu 経路では fish 未インストール → 実行不可。
-#   baked WSL2/qcow2 は 40-fish.sh で fish を事前インストール済みのため、
-#   DEVTOOL_USER_SHELL 未設定時のデフォルトを /usr/bin/fish とする。
-#   ADR-0006 の「bare Ubuntu では bash」要件は呼び出し元 bootstrap.sh が
-#   DEVTOOL_USER_SHELL=/bin/bash を渡すことで対処 (Cycle 8)。
+# WHY-NOT: hardcoding /bin/bash — the bare Ubuntu path has no fish installed,
+#   so it would fail. Baked WSL2/qcow2 already install fish via 40-fish.sh,
+#   so /usr/bin/fish is the default when DEVTOOL_USER_SHELL is unset.
+#   The ADR-0006 requirement "bare Ubuntu uses bash" is handled by the
+#   caller bootstrap.sh passing DEVTOOL_USER_SHELL=/bin/bash (Cycle 8).
 DEVTOOL_USER_SHELL="${DEVTOOL_USER_SHELL:-/usr/bin/fish}"
-# WHY-NOT: PROVISION_CHROOT を残す — test seam-α が sudoers.d 先を tmpdir に切替えるため必要。
-#   空文字列時は本番パス (/etc/sudoers.d) に展開。
+# WHY-NOT: dropping PROVISION_CHROOT — test seam-α needs it to redirect the
+#   sudoers.d destination to a tmpdir. Empty string expands to the production
+#   path (/etc/sudoers.d).
 PROVISION_CHROOT="${PROVISION_CHROOT:-}"
 
 # --- groupadd ---

@@ -53,8 +53,8 @@ is_wsl2() {
 # Override via DEVTOOL_SETUP_MODE for test seams and manual control.
 # Contract: override values are returned verbatim without validation
 # (raw detector). main() dispatch is responsible for rejecting unknown modes.
-# WHY-NOT: DMI 判定のみ — QEMU/KVM で sys_vendor が空のケースがあり
-# systemd-detect-virt --vm を second-chance に置く。
+# WHY-NOT: DMI check alone — sys_vendor can be empty under QEMU/KVM,
+# so place systemd-detect-virt --vm as a second-chance check.
 detect_setup_mode() {
 	if [[ -n "${DEVTOOL_SETUP_MODE:-}" ]]; then
 		printf '%s' "${DEVTOOL_SETUP_MODE}"

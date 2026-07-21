@@ -111,7 +111,7 @@ _phase2_user() {
 	local username="${DEFAULT_USERNAME}"
 	if ! id -nG "${username}" | grep -qw "docker" 2>/dev/null; then
 		local docker_gid
-		# WHY-NOT: 固定 gid ハードコード — 上流 docker パッケージ更新で gid が変わると追従コスト発生
+		# WHY-NOT: hardcoding a fixed gid — upstream docker package updates may change the gid, forcing follow-up maintenance
 		docker_gid="$(getent group docker | cut --delimiter=: --fields=3)"
 		sudo usermod --append --groups docker "${username}"
 		log_info "docker group join: gid=${docker_gid}"
@@ -227,19 +227,20 @@ main() {
 		if [[ -n "${DRY_RUN}" ]]; then
 			log_info "[DRY_RUN] (${DEFAULT_USERNAME}) $*"
 		elif [[ "${EUID}" -eq 0 ]]; then
-			# WHY-NOT: su - user -c — login shell 経由 (${DEFAULT_USERNAME} の
-			#   login shell = /usr/bin/fish) は chroot 内で
-			#   "Permission denied" になり得る (qcow2 resolute で実測)。
-			#   sudo -u -H は login shell を経由せず bash を直接 exec するため
-			#   影響を受けない。phase 2 実装 (bootstrap.sh 内 _phase2_user
-			#   → exec sudo -u user) と経路を統一。
-			# WHY-NOT: sudo ... env ... — chroot 内 sudo は PATH lookup で
-			#   "sudo: 'env': command not found" になった (qcow2 resolute 実測)。
-			#   sudo は VAR=val 形式を自前解釈するため env(1) 不要。
-			# WHY-NOT: /bin/bash — resolute chroot で sudo が
-			#   "'/bin/bash': command not found" を返した (qcow2 resolute 実測、
-			#   run 29802135056)。/bin symlink 未解決 or sudo policy 由来。
-			#   /usr/bin/bash は merged-usr Ubuntu の実体パスで確実に存在する。
+			# WHY-NOT: su - user -c — going through a login shell (${DEFAULT_USERNAME}'s
+			#   login shell = /usr/bin/fish) can fail with "Permission denied" inside
+			#   the chroot (observed on qcow2 resolute). sudo -u -H bypasses the
+			#   login shell and execs bash directly, avoiding the issue. Unifies
+			#   the path with the phase 2 implementation (bootstrap.sh _phase2_user
+			#   → exec sudo -u user).
+			# WHY-NOT: sudo ... env ... — inside the chroot, sudo's PATH lookup
+			#   returned "sudo: 'env': command not found" (observed on qcow2
+			#   resolute). sudo parses VAR=val itself, so env(1) is unnecessary.
+			# WHY-NOT: /bin/bash — on resolute chroot, sudo returned
+			#   "'/bin/bash': command not found" (observed on qcow2 resolute,
+			#   run 29802135056). Likely unresolved /bin symlink or sudo policy.
+			#   /usr/bin/bash is the real path under merged-usr Ubuntu and always
+			#   exists.
 			sudo --user "${DEFAULT_USERNAME}" --set-home \
 				"DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
 				"PROVISION_ROOT=${provision_root}" /usr/bin/bash "$1"

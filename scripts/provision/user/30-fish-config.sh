@@ -18,7 +18,7 @@ _run() {
 	fi
 }
 
-# root 実行禁止 (HOME 依存)
+# Must not run as root (HOME-dependent)
 if [[ "${EUID}" -eq 0 ]]; then
 	log_erro "This script must not run as root (HOME-dependent)"
 	exit 1
