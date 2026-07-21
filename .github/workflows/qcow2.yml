@@ -150,6 +150,9 @@ jobs:
           sudo -E guestmount \
             --add "${{ matrix.series }}-server-cloudimg-amd64.img" \
             --inspector --rw /mnt/qcow2
+          # WHY: identify exactly which bootstrap.sh is executed in chroot to
+          #   rule out file-substitution when logs show stale behavior
+          sha256sum scripts/provision/bootstrap.sh
           sudo bash scripts/image/provision-chroot.sh \
             /mnt/qcow2 \
             "${{ github.workspace }}/scripts"
