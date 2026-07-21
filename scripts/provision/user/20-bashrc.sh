@@ -6,7 +6,7 @@ set -euo pipefail
 log_info() { echo -e "\033[0;36m[INFO]\033[0m $*"; }
 log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
-# root 実行禁止 (HOME 依存)
+# Must not run as root (HOME-dependent)
 if [[ "${EUID}" -eq 0 ]]; then
 	log_erro "This script must not run as root (HOME-dependent)"
 	exit 1

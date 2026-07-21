@@ -10,16 +10,16 @@ param (
 )
 $env:WSL_UTF8=1
 
-# TLS 1.2を有効化（セキュアな通信のため）
+# Enable TLS 1.2 (for secure communication)
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# エラーハンドリングの設定
+# Error handling settings
 $ErrorActionPreference = "Stop"
 
-# エラーログファイルのパス
+# Error log file path
 $logFile = "$env:USERPROFILE\devtool-error.log"
 
-# ログ出力関数
+# Log output function
 function Write-Log {
 	param (
 		[string]$Message,
@@ -31,7 +31,7 @@ function Write-Log {
 	Write-Host $logMessage
 }
 
-# エラーログをクリア
+# Clear the error log
 if (Test-Path $logFile) {
 	Remove-Item $logFile -Force
 }
@@ -76,13 +76,13 @@ function Download-Assets {
 				try {
 					if ($retryCount -gt 0) {
 						Write-Log "Retry attempt $retryCount for $($asset.name)" -Level "INFO"
-						Start-Sleep -Seconds ($retryDelaySeconds * $retryCount) # 指数バックオフ
+						Start-Sleep -Seconds ($retryDelaySeconds * $retryCount) # exponential backoff
 					}
 
-					# 一時ファイル名を使用（ファイルロック問題を回避）
+					# Use a temp filename (avoid file lock issues)
 					$tempFile = "$outputFile.tmp"
 
-					# 既存のファイルがある場合は削除
+					# Remove any existing file
 					if (Test-Path $tempFile) {
 						try {
 							Remove-Item $tempFile -Force -ErrorAction Stop
@@ -94,7 +94,7 @@ function Download-Assets {
 						}
 					}
 
-					# 既存の出力ファイルがある場合は削除
+					# Remove any existing output file
 					if (Test-Path $outputFile) {
 						try {
 							Remove-Item $outputFile -Force -ErrorAction Stop
@@ -106,11 +106,11 @@ function Download-Assets {
 						}
 					}
 
-					# curlを使用してダウンロード（最初から最も信頼性の高い方法を使用）
+					# Download using curl (use the most reliable method from the start)
 					Write-Log "Starting download using curl to temp file: $tempFile" -Level "INFO"
 
 					try {
-						# curl.exeが存在するか確認
+						# Check whether curl.exe exists
 						$curlPath = "curl.exe"
 						if (-not (Get-Command $curlPath -ErrorAction SilentlyContinue)) {
 							Write-Log "curl.exe not found in PATH. Trying Windows built-in curl..." -Level "INFO"
@@ -122,23 +122,23 @@ function Download-Assets {
 							}
 						}
 
-						# curlを使用してダウンロード
+						# Download using curl
 						$curlArgs = @(
-							"-L", # リダイレクトに従う
-							"-o", $tempFile, # 出力ファイル
-							"--retry", "5", # リトライ回数
-							"--retry-delay", "5", # リトライ間隔（秒）
-							"--retry-max-time", "60", # 最大リトライ時間（秒）
-							"--connect-timeout", "30", # 接続タイムアウト（秒）
-							"--max-time", "3600", # 最大実行時間（秒）
-							"--keepalive-time", "60", # キープアライブ時間（秒）
+							"-L", # follow redirects
+							"-o", $tempFile, # output file
+							"--retry", "5", # retry count
+							"--retry-delay", "5", # retry interval (seconds)
+							"--retry-max-time", "60", # max retry time (seconds)
+							"--connect-timeout", "30", # connect timeout (seconds)
+							"--max-time", "3600", # max execution time (seconds)
+							"--keepalive-time", "60", # keepalive time (seconds)
 							$assetUrl # URL
 						)
 
 						Write-Log "Executing curl command: $curlPath $($curlArgs -join ' ')" -Level "INFO"
 						Write-Log "Download started at $(Get-Date)" -Level "INFO"
 
-						# curlプロセスを開始
+						# Start the curl process
 						$curlProcess = Start-Process -FilePath $curlPath -ArgumentList $curlArgs -NoNewWindow -PassThru -Wait
 
 						Write-Log "Download completed at $(Get-Date) with exit code: $($curlProcess.ExitCode)" -Level "INFO"
@@ -152,11 +152,11 @@ function Download-Assets {
 						throw
 					}
 
-					# ダウンロード完了の確認
+					# Verify download completion
 					if (Test-Path $tempFile) {
 						$downloadedFileSize = (Get-Item $tempFile).Length
 						if ($downloadedFileSize -gt 0) {
-							# 一時ファイルを最終ファイルにリネーム
+							# Rename temp file to final file
 							try {
 								Move-Item -Path $tempFile -Destination $outputFile -Force -ErrorAction Stop
 								Write-Log "Download Complete: $($asset.name) (Size: $downloadedFileSize bytes)" -Level "INFO"
@@ -182,14 +182,14 @@ function Download-Assets {
 			if (-not $downloadSuccess) {
 				Write-Log "Failed to download $($asset.name) after $maxRetries attempts" -Level "ERROR"
 
-				# 最後の手段として、Invoke-WebRequestを使用してダウンロードを試みる
+				# As a last resort, try downloading with Invoke-WebRequest
 				try {
 					Write-Log "Attempting to download $($asset.name) using Invoke-WebRequest as fallback" -Level "INFO"
 
-					# 一時ファイル名を使用
+					# Use a temp filename
 					$tempFile = "$outputFile.iwr.tmp"
 
-					# 既存のファイルがある場合は削除
+					# Remove any existing file
 					if (Test-Path $tempFile) {
 						try {
 							Remove-Item $tempFile -Force -ErrorAction Stop
@@ -199,7 +199,7 @@ function Download-Assets {
 						}
 					}
 
-					# Invoke-WebRequestを使用してダウンロード
+					# Download using Invoke-WebRequest
 					Write-Log "Download started at $(Get-Date) using Invoke-WebRequest" -Level "INFO"
 					Invoke-WebRequest -Uri $assetUrl -OutFile $tempFile -UseBasicParsing -TimeoutSec 3600
 					Write-Log "Download completed at $(Get-Date) using Invoke-WebRequest" -Level "INFO"
@@ -207,7 +207,7 @@ function Download-Assets {
 					if (Test-Path $tempFile) {
 						$fileSize = (Get-Item $tempFile).Length
 						if ($fileSize -gt 0) {
-							# 一時ファイルを最終ファイルにリネーム
+							# Rename temp file to final file
 							try {
 								Move-Item -Path $tempFile -Destination $outputFile -Force -ErrorAction Stop
 								Write-Log "Fallback download complete using Invoke-WebRequest: $($asset.name) (Size: $fileSize bytes)" -Level "INFO"
@@ -472,7 +472,7 @@ function Main {
 	$repo = "devtool-wsl2"
 
 	try {
-		# Tag が指定されている場合は特定のリリースを取得、なければ latest
+		# If Tag is specified, fetch that release; otherwise fetch latest
 		if ($Tag) {
 			Write-Log "[DEBUG] Attempting to get release info for tag: $Tag"
 			$apiUrl = "https://api.github.com/repos/$owner/$repo/releases/tags/$Tag"
@@ -529,7 +529,7 @@ function Main {
 		# Run the download
 		Download-Assets -assets $assets -downloadPath $downloadPath
 
-		# Perform hash verification (ダウンロードに失敗したファイルがあっても続行)
+		# Perform hash verification (continue even if some files failed to download)
 		if (Verify-Hashes -downloadPath $downloadPath -skipMissingFiles) {
 			# Executes the combination of part files
 			$tarGzFile = Combine-Parts -downloadPath $downloadPath
@@ -558,7 +558,7 @@ function Main {
 	}
 }
 
-# デバッグモードの場合は、GitHub APIのテストのみを行う
+# In debug mode, only run the GitHub API test
 if ($Debug) {
     try {
         Write-Log "Debug mode: Runs tests against the GitHub API" -Level "INFO"
@@ -575,15 +575,15 @@ if ($Debug) {
         $apiUrlInfo = "GitHub API URL: " + $apiUrl
         Write-Log $apiUrlInfo -Level "INFO"
         $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
-        Write-Log "GitHub API レスポンス: $($response | ConvertTo-Json -Depth 1)" -Level "INFO"
-        Write-Log "GitHub API テスト成功" -Level "INFO"
+        Write-Log "GitHub API response: $($response | ConvertTo-Json -Depth 1)" -Level "INFO"
+        Write-Log "GitHub API test succeeded" -Level "INFO"
         exit 0
     } catch {
-        Write-Log "GitHub API テスト失敗: $_" -Level "ERROR"
+        Write-Log "GitHub API test failed: $_" -Level "ERROR"
         exit 1
     }
 }
 
-# 通常モードの場合は、通常の処理を実行
+# In normal mode, run the standard flow
 Main -Tag $Tag -skipWSLImport:$skipWSLImport -skipWSLDefault:$skipWSLDefault `
 	-skipBackupAndRestore:$skipBackupAndRestore -ImportForce:$ImportForce -Debug:$Debug

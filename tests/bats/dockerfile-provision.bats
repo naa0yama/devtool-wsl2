@@ -26,7 +26,7 @@ DOCKERFILE="${BATS_TEST_DIRNAME}/../../Dockerfile"
 }
 
 @test "dockerfile_removes_stale_40_fish_reference" {
-	# 40-fish.sh は個別 RUN 参照を削除; ループ経由で実行されるが直参照は不要
+	# 40-fish.sh no longer has a dedicated RUN reference; the loop still executes it, so a direct reference is unnecessary
 	run grep --regexp '/opt/devtool/provision/system/40-fish\.sh' "${DOCKERFILE}"
 	assert_failure
 }

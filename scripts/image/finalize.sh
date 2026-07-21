@@ -70,7 +70,7 @@ else
 	find /tmp /var/tmp -mindepth 1 -delete
 fi
 
-# WHY-NOT: virt-sparsify — image 外部で virt-customize 完了後に別途実行するため
-# スクリプト内では実行しない
+# WHY-NOT: virt-sparsify — runs separately outside the image after virt-customize finishes,
+# so it is not invoked inside this script
 
 log_info "finalize.sh complete"
