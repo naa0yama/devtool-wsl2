@@ -227,7 +227,15 @@ main() {
 		if [[ -n "${DRY_RUN}" ]]; then
 			log_info "[DRY_RUN] (${DEFAULT_USERNAME}) $*"
 		elif [[ "${EUID}" -eq 0 ]]; then
-			su - "${DEFAULT_USERNAME}" -c "DEVTOOL_ENV='${DEVTOOL_ENV}' DRY_RUN='${DRY_RUN}' PROVISION_ROOT='${provision_root}' bash '$1'"
+			# WHY-NOT: su - user -c — login shell 経由 (${DEFAULT_USERNAME} の
+			#   login shell = /usr/bin/fish) は chroot 内で
+			#   "Permission denied" になり得る (qcow2 resolute で実測)。
+			#   sudo -u -H は login shell を経由せず bash を直接 exec するため
+			#   影響を受けない。phase 2 実装 (bootstrap.sh 内 _phase2_user
+			#   → exec sudo -u user) と経路を統一。
+			sudo --user "${DEFAULT_USERNAME}" --set-home \
+				env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
+				"PROVISION_ROOT=${provision_root}" bash "$1"
 		else
 			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "$1"
 		fi
