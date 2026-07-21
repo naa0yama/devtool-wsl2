@@ -9,6 +9,7 @@ log_erro() { echo -e "\033[0;31m[ERRO]\033[0m $*" >&2; }
 
 TZ="${TZ:-Asia/Tokyo}"
 DRY_RUN="${DRY_RUN:-}"
+DEVTOOL_ENV="${DEVTOOL_ENV:-wsl}"
 
 _apt_get() {
 	if [[ -n "${DRY_RUN}" ]]; then
@@ -43,6 +44,19 @@ done
 # --- apt update / upgrade ---
 log_info "apt update + upgrade"
 _apt_get --yes update
+
+# WHY-NOT: skip purge and let upgrade proceed — snapd 2.75→2.76 postinst
+#   invokes setcap on snap-confine which fails in chroot (no capability
+#   sysfs), aborting the whole apt upgrade with dpkg error. Purging before
+#   upgrade sidesteps the failing package entirely; snapd is unused in the
+#   qcow2 golden image (no snap workloads shipped).
+# WHY-NOT: purge in 40-cleanup-ubuntu.sh — cleanup runs after apt upgrade,
+#   which is exactly the step that fails; must happen before upgrade.
+if [[ "${DEVTOOL_ENV}" == "vm" ]]; then
+	log_info "vm: purge snapd before upgrade (chroot-incompatible postinst)"
+	_apt_get --yes purge snapd
+fi
+
 _apt_get --yes upgrade
 
 # --- unminimize ---
