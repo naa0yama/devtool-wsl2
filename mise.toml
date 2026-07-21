@@ -3,7 +3,7 @@
 "cargo:cargo-sweep" = "0.8.0"
 "cargo:topgrade" = "latest"
 awscli = { version = "latest", symlink_bins = "true" }
-chezmoi = "2.70.5"
+chezmoi = "2.71.0"
 dprint = "0.55.1"
 dua = "2.34.0"
 fzf = "0.72.0"
