@@ -233,9 +233,13 @@ main() {
 			#   sudo -u -H は login shell を経由せず bash を直接 exec するため
 			#   影響を受けない。phase 2 実装 (bootstrap.sh 内 _phase2_user
 			#   → exec sudo -u user) と経路を統一。
+			# WHY-NOT: sudo ... env ... — chroot 内 sudo は PATH lookup で
+			#   "sudo: 'env': command not found" になった (qcow2 resolute 実測)。
+			#   sudo は VAR=val 形式を自前解釈するため env(1) 不要、
+			#   直接 bash を exec すれば PATH 探索も回避できる。
 			sudo --user "${DEFAULT_USERNAME}" --set-home \
-				env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
-				"PROVISION_ROOT=${provision_root}" bash "$1"
+				"DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
+				"PROVISION_ROOT=${provision_root}" /bin/bash "$1"
 		else
 			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "$1"
 		fi
