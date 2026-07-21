@@ -47,6 +47,7 @@ exec_provision_in_chroot() {
 	mkdir -p "${mnt}/opt/devtool"
 	cp -a "${scripts_src}" "${mnt}/opt/devtool/scripts"
 	chroot "${mnt}" env DEVTOOL_ENV=vm DEVTOOL_SRC_ROOT=/opt/devtool \
+		DEVTOOL_TRACE=1 \
 		bash /opt/devtool/scripts/provision/bootstrap.sh
 	chroot "${mnt}" bash /opt/devtool/scripts/image/finalize.sh
 }

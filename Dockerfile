@@ -35,7 +35,7 @@ SHELL [ "/bin/bash", "-c" ]
 
 COPY scripts			/opt/devtool/scripts
 
-# WHY-NOT: RUN 個別行維持 — 新 script 追加時に Dockerfile 修正が必要になる
+# WHY-NOT: individual RUN lines — glob avoids editing Dockerfile when adding new scripts
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt,sharing=locked \
 	for f in /opt/devtool/scripts/provision/system/*.sh; do \
@@ -53,7 +53,7 @@ ARG DEBIAN_FRONTEND \
 
 USER ${DEFAULT_USERNAME}
 
-# WHY-NOT: RUN 個別行維持 — 新 script 追加時に Dockerfile 修正が必要になる
+# WHY-NOT: individual RUN lines — glob avoids editing Dockerfile when adding new scripts
 RUN for f in /opt/devtool/scripts/provision/user/*.sh; do \
 		DEVTOOL_ENV=wsl2 PROVISION_ROOT=/opt/devtool/scripts/provision bash "${f}"; \
 	done

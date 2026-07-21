@@ -32,6 +32,17 @@ jobs:
           echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 
       - name: Install tools via mise
+        env:
+          # WHY: mise resolves `latest` aliases and aqua registry lookups via
+          #   api.github.com; the unauthenticated 60 req/hr limit is shared
+          #   across the runner IP pool and exhausts mid-install, producing
+          #   "no versions found ... matching date filter" errors that fail
+          #   the matrix. GITHUB_TOKEN raises the ceiling to 1000 req/hr per
+          #   repo — sufficient headroom for all four matrix jobs.
+          # WHY-NOT: pin every tool in mise.toml — some (rust, aqua-managed)
+          #   are intentionally rolling; token injection keeps CI reproducible
+          #   without freezing the developer-local upgrade cadence.
+          MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mise install
 
       - name: Set up bats libraries

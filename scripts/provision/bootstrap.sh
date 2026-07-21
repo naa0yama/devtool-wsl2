@@ -235,11 +235,14 @@ main() {
 			#   → exec sudo -u user) と経路を統一。
 			# WHY-NOT: sudo ... env ... — chroot 内 sudo は PATH lookup で
 			#   "sudo: 'env': command not found" になった (qcow2 resolute 実測)。
-			#   sudo は VAR=val 形式を自前解釈するため env(1) 不要、
-			#   直接 bash を exec すれば PATH 探索も回避できる。
+			#   sudo は VAR=val 形式を自前解釈するため env(1) 不要。
+			# WHY-NOT: /bin/bash — resolute chroot で sudo が
+			#   "'/bin/bash': command not found" を返した (qcow2 resolute 実測、
+			#   run 29802135056)。/bin symlink 未解決 or sudo policy 由来。
+			#   /usr/bin/bash は merged-usr Ubuntu の実体パスで確実に存在する。
 			sudo --user "${DEFAULT_USERNAME}" --set-home \
 				"DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
-				"PROVISION_ROOT=${provision_root}" /bin/bash "$1"
+				"PROVISION_ROOT=${provision_root}" /usr/bin/bash "$1"
 		else
 			env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" "PROVISION_ROOT=${provision_root}" bash "$1"
 		fi
