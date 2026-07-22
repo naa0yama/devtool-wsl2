@@ -30,6 +30,15 @@ write_files:
       }
       trap _on_exit EXIT
 
+      # WHY: prior runs stalled inside apt fetching from the external
+      #   mirror over QEMU usermode networking; this probe captures
+      #   guest-to-internet throughput so a repeat stall can be
+      #   distinguished from a guest-to-host (UPSTREAM) issue.
+      echo "DEVTOOL_VM_TEST: net probe begin epoch=$(date +%s)"
+      curl --silent --show-error --location --max-time 30 \
+      	--output /dev/null --write-out "DEVTOOL_VM_TEST: net probe speed=%{speed_download} bytes/s\n" \
+      	"http://archive.ubuntu.com/ubuntu/dists/noble/Release" || true
+
       echo "DEVTOOL_VM_TEST: bootstrap begin epoch=$(date +%s)"
       curl --fail --silent --show-error --location "${UPSTREAM}/scripts/provision/bootstrap.sh" \
       	| UPSTREAM="${UPSTREAM}" DEVTOOL_SRC_URL="${UPSTREAM}/devtool-src.tar.gz" bash
