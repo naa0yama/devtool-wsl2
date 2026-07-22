@@ -139,6 +139,7 @@ main() {
 	DRY_RUN="${DRY_RUN:-}"
 	DEVTOOL_SKIP_FETCH="${DEVTOOL_SKIP_FETCH:-}"
 	DEVTOOL_SRC_ROOT="${DEVTOOL_SRC_ROOT:-}"
+	DEVTOOL_SRC_URL="${DEVTOOL_SRC_URL:-}"
 
 	DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
 
@@ -161,7 +162,10 @@ main() {
 
 		if [[ -z "${DEVTOOL_SKIP_FETCH}" ]]; then
 			read -ra CURL_OPTS <<< "${CURL_OPTS:--sfSL --retry 3 --retry-delay 2 --retry-connrefused}"
-			url="https://github.com/${DEVTOOL_REPO}/archive/${DEVTOOL_TAG}.tar.gz"
+			# WHY-NOT: DEVTOOL_REPO/DEVTOOL_TAG-only injection — CI kvm-test serves
+			#   the PR checkout over http (fork PRs have no fetchable merge-commit
+			#   archive on github.com), so a full-URL override seam is required.
+			url="${DEVTOOL_SRC_URL:-https://github.com/${DEVTOOL_REPO}/archive/${DEVTOOL_TAG}.tar.gz}"
 			log_info "Fetching tarball: ${url}"
 
 			if [[ -n "${DRY_RUN}" ]]; then
@@ -223,42 +227,17 @@ main() {
 	# --- user layer ---
 	log_info "=== user layer (uid=${DEFAULT_USERNAME}) ==="
 
-	# Pre-flight diagnostics: if the user-layer exec fails again, the following
-	# probes localize the cause (bash path, user home, sudoers state, id
-	# resolution) in a single CI run rather than requiring another iteration.
-	if [[ -z "${DRY_RUN}" && "${EUID}" -eq 0 ]]; then
-		log_info "user-layer pre-flight diagnostics"
-		{
-			echo "--- bash binaries ---"
-			ls -l /bin/bash /usr/bin/bash 2>&1 || true
-			echo "--- runuser / sudo binaries ---"
-			command -v runuser || true
-			command -v sudo || true
-			echo "--- user identity ---"
-			getent passwd "${DEFAULT_USERNAME}" 2>&1 || true
-			ls -ld "/home/${DEFAULT_USERNAME}" 2>&1 || true
-			echo "--- runuser sanity ---"
-			runuser -u "${DEFAULT_USERNAME}" -- id 2>&1 || true
-		} >&2
-	fi
-
 	_run_as_user() {
 		if [[ -n "${DRY_RUN}" ]]; then
 			log_info "[DRY_RUN] (${DEFAULT_USERNAME}) $*"
 		elif [[ "${EUID}" -eq 0 ]]; then
-			# WHY-NOT: sudo --user — sudo(8) inside the qcow2 chroot returns
-			#   "command not found" for both bareword (env) and absolute
-			#   (/bin/bash, /usr/bin/bash) targets across noble and resolute
-			#   (runs 29802135056, 29823063661). Suspected cause: sudo's
-			#   pre-exec faccessat/PAM/policy path is broken by the chroot
-			#   environment (no /proc PAM state, secure_path resolution).
-			#   runuser (util-linux) uses setuid directly, no PAM, no
-			#   secure_path — bypasses the entire failure surface.
-			# WHY-NOT: su - user -c — login shell (user's default = fish
-			#   on baked images) triggers "Permission denied" in chroot.
-			# WHY-NOT: chroot --userspec — moves user switching out of
-			#   bootstrap.sh into provision-chroot.sh, breaking the shared
-			#   path with the non-chroot WSL2/bare Ubuntu code.
+			# WHY-NOT: sudo --user — sudo resolves the target through
+			#   PAM/secure_path, which varies across execution environments
+			#   (Docker build, cloud-init runcmd); runuser (util-linux) uses
+			#   setuid directly and is validated by both the WSL2 Docker
+			#   build and the kvm-test real-boot job.
+			# WHY-NOT: su - user -c — spawns the user's login shell (fish),
+			#   whose availability mid-provision is not guaranteed.
 			HOME="/home/${DEFAULT_USERNAME}" runuser -u "${DEFAULT_USERNAME}" -- \
 				env "DEVTOOL_ENV=${DEVTOOL_ENV}" "DRY_RUN=${DRY_RUN}" \
 				"PROVISION_ROOT=${provision_root}" "HOME=/home/${DEFAULT_USERNAME}" \
@@ -276,13 +255,22 @@ main() {
 	log_info "bootstrap complete (DEVTOOL_ENV=${DEVTOOL_ENV}, DEVTOOL_TAG=${DEVTOOL_TAG})"
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+# WHY-NOT: bare ${BASH_SOURCE[0]} — under `curl | bash` (piped stdin) the
+#   BASH_SOURCE array is empty, which is an unbound-variable error with
+#   `set -u`; defaulting to $0 keeps the sourced-vs-executed check working
+#   while making the piped oneliner dispatch (empty → $0 → equal → run).
+if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
 	DEVTOOL_BOOTSTRAP_SELF="${DEVTOOL_BOOTSTRAP_SELF:-/tmp/devtool-bootstrap.sh}"
 	UPSTREAM="${UPSTREAM:-https://raw.githubusercontent.com/naa0yama/devtool-wsl2/main}"
 	PROVISION_ASSET_URL="${PROVISION_ASSET_URL:-https://github.com/naa0yama/devtool-wsl2/releases/latest/download/devtool-provision.tar.gz}"
 	DEVTOOL_PROVISION_DIR="${DEVTOOL_PROVISION_DIR:-/tmp/devtool-provision}"
 
-	if [[ "${BASH_SOURCE[0]}" != "${DEVTOOL_BOOTSTRAP_SELF}" && ! -f "${DEVTOOL_BOOTSTRAP_SELF}" ]]; then
+	# WHY-NOT: ${BASH_SOURCE[0]:-$0} here too — this check only needs the
+	#   `:-` to satisfy `set -u`; unlike the guard above, the fallback value
+	#   never affects the comparison outcome (a piped $0 such as "bash" is
+	#   never equal to ${DEVTOOL_BOOTSTRAP_SELF}), so an empty default is
+	#   simplest.
+	if [[ "${BASH_SOURCE[0]:-}" != "${DEVTOOL_BOOTSTRAP_SELF}" && ! -f "${DEVTOOL_BOOTSTRAP_SELF}" ]]; then
 		log_info "Self-downloading bootstrap to ${DEVTOOL_BOOTSTRAP_SELF}"
 		curl -fsSL "${UPSTREAM}/scripts/provision/bootstrap.sh" -o "${DEVTOOL_BOOTSTRAP_SELF}"
 		chmod +x "${DEVTOOL_BOOTSTRAP_SELF}"

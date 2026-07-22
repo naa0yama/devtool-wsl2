@@ -55,5 +55,5 @@ jobs:
 
       - name: Run shellcheck on provision scripts
         run: |
-          find scripts/provision -name '*.sh' -print0 \
+          find scripts/provision tests/vm -name '*.sh' -print0 \
             | xargs -0 shellcheck --external-sources
