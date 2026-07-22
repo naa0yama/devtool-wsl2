@@ -28,14 +28,19 @@ _apt_get() {
 # WHY-NOT: apt.conf.d Acquire::Retries alone — it only reopens a connection
 #   after Acquire::http::Timeout fires, so it cannot recover from a trickle
 #   that keeps the connection technically alive.
+# WHY: `timeout` without `--kill-after` only sends SIGTERM once; apt-get
+#   forks a separate http method worker to do the actual transfer, and if
+#   that worker doesn't unwind promptly on SIGTERM, neither process actually
+#   exits at the deadline — the retry loop never observes a return and stays
+#   stuck on the first attempt. `--kill-after` guarantees a follow-up SIGKILL.
 _apt_get_update() {
 	if [[ -n "${DRY_RUN}" ]]; then
 		_apt_get --yes update
 		return 0
 	fi
-	local timeout_sec=300 max_attempts=3 attempt
+	local timeout_sec=300 kill_after_sec=10 max_attempts=3 attempt
 	for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-		if timeout "${timeout_sec}" apt-get --yes update; then
+		if timeout --kill-after="${kill_after_sec}" "${timeout_sec}" apt-get --yes update; then
 			return 0
 		fi
 		log_warn "apt-get update timed out or failed (attempt ${attempt}/${max_attempts}), retrying"

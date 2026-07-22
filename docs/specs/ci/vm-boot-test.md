@@ -100,13 +100,19 @@ build.yml
    移すだけで根本対策にならないと判断し、不採用とした。
 
    代わりに `scripts/provision/system/10-apt-base.sh` の
-   `apt-get update` 呼び出しを `timeout 300` + 最大 3 回リトライで
-   包む (`_apt_get_update`)。apt 自身の `Acquire::http::Timeout` は
-   dead-connection (0 byte 受信) 検知のみで、生きてはいるが極端に遅い
+   `apt-get update` 呼び出しを `timeout --kill-after=10 300` + 最大 3 回
+   リトライで包む (`_apt_get_update`)。apt 自身の `Acquire::http::Timeout`
+   は dead-connection (0 byte 受信) 検知のみで、生きてはいるが極端に遅い
    trickle 転送は検知できない — shell 側 timeout は転送状態に関わらず
    強制中断し、リトライで新規コネクションを張り直すことで trickle にも
-   対応する。この修正は全 provisioning target 共通 (bare/wsl2/vm/container)
-   に適用され、CI guest 限定ではない。`tests/vm/user-data.yaml` の
+   対応する。`--kill-after` が必須な理由: `timeout` は既定で SIGTERM を
+   1 回送るのみで、apt-get が転送を担う http method worker 子プロセスへ
+   即座に伝播しない場合、300s 経過後も実際にはプロセスが終了せず
+   retry loop が発火しない (ローカル repro:
+   `timeout 2 bash -c 'trap "" TERM; sleep 6'` → 実測 exit=124 だが
+   プロセス自体は生存継続)。この修正は全 provisioning target 共通
+   (bare/wsl2/vm/container) に適用され、CI guest 限定ではない。
+   `tests/vm/user-data.yaml` の
    `/etc/apt/apt.conf.d/80-devtool-vm-test-retries`
    (`Acquire::Retries`/`Acquire::http::Timeout`) は CI guest 限定のまま
    併用し、update 以外の apt 操作 (upgrade/install) の一時的な mirror
