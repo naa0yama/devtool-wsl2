@@ -19,6 +19,31 @@ _apt_get() {
 	fi
 }
 
+# WHY: mirror fetches (archive.ubuntu.com and friends) occasionally trickle
+#   at near-zero throughput without ever hitting a hard stop, so apt's own
+#   Acquire::http::Timeout (dead-connection detection only) never fires;
+#   wrapping each attempt in `timeout` forces an abort even on a live-but-slow
+#   transfer, and retrying starts a fresh connection that may land on a
+#   healthier path.
+# WHY-NOT: apt.conf.d Acquire::Retries alone — it only reopens a connection
+#   after Acquire::http::Timeout fires, so it cannot recover from a trickle
+#   that keeps the connection technically alive.
+_apt_get_update() {
+	if [[ -n "${DRY_RUN}" ]]; then
+		_apt_get --yes update
+		return 0
+	fi
+	local timeout_sec=300 max_attempts=3 attempt
+	for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+		if timeout "${timeout_sec}" apt-get --yes update; then
+			return 0
+		fi
+		log_warn "apt-get update timed out or failed (attempt ${attempt}/${max_attempts}), retrying"
+	done
+	log_erro "apt-get update failed after ${max_attempts} attempts"
+	return 1
+}
+
 # --- Timezone ---
 log_info "set Timezone: ${TZ}"
 if [[ -n "${DRY_RUN}" ]]; then
@@ -43,7 +68,7 @@ done
 
 # --- apt update / upgrade ---
 log_info "apt update + upgrade"
-_apt_get --yes update
+_apt_get_update
 
 # WHY-NOT: skip purge and let upgrade proceed — snapd is unused on the
 #   bootstrap-provisioned VM target (no snap workloads shipped), and its
