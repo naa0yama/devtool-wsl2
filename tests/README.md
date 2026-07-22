@@ -43,10 +43,10 @@ tests/
 
 ## What is tested
 
-| Test | Description |
-|------|-------------|
-| system scripts have valid shebang | 全 system/*.sh が `#!/usr/bin/env bash` を持つ |
-| system scripts are executable | 全 system/*.sh が実行可能 |
-| system scripts pass shellcheck | shellcheck エラーゼロ |
-| 10-apt-base runs idempotently with DRY_RUN | DRY_RUN=1 で 2 回連続 exit 0 |
-| 60-wsl-conf skips wsl.conf when DEVTOOL_ENV is not wsl2 | DEVTOOL_ENV=vm で wsl.conf スキップ |
+| Test                                                    | Description                                    |
+| ------------------------------------------------------- | ---------------------------------------------- |
+| system scripts have valid shebang                       | 全 system/*.sh が `#!/usr/bin/env bash` を持つ |
+| system scripts are executable                           | 全 system/*.sh が実行可能                      |
+| system scripts pass shellcheck                          | shellcheck エラーゼロ                          |
+| 10-apt-base runs idempotently with DRY_RUN              | DRY_RUN=1 で 2 回連続 exit 0                   |
+| 60-wsl-conf skips wsl.conf when DEVTOOL_ENV is not wsl2 | DEVTOOL_ENV=vm で wsl.conf スキップ            |
