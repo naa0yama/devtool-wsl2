@@ -63,12 +63,14 @@ build.yml
    `timeout --signal=KILL 1500` で保護。`console.log` から
    `DEVTOOL_VM_TEST: PASS` sentinel を grep
 
-   guest netdev は `-netdev user,id=net0,mtu=1280 -device
-   virtio-net-pci,netdev=net0` (`-nic user,model=virtio-net-pci` から変更)。
-   既定 MTU (1500) だと runner network 上で PMTU black hole が発生し、
-   ICMP frag-needed が guest へ返らず apt の bulk fetch が数 KB/s まで
-   劣化する事象を観測 (15MB Packages file 取得が job timeout に到達)。
-   MTU 1280 で fragmentation を回避し安定化。
+   guest netdev は `-netdev user,id=net0 -device
+   virtio-net-pci,netdev=net0,host_mtu=1280` (`-nic user,model=virtio-net-pci`
+   から変更)。既定 MTU (1500) だと runner network 上で PMTU black hole が
+   発生し、ICMP frag-needed が guest へ返らず apt の bulk fetch が数 KB/s
+   まで劣化する事象を観測 (15MB Packages file 取得が job timeout に到達)。
+   MTU は `-netdev user` に直接指定できない (`Invalid parameter 'mtu'`) ため
+   `-device virtio-net-pci` の `host_mtu` (VIRTIO_NET_F_MTU 経由の negotiation)
+   で guest へ伝え、fragmentation を回避し安定化。
 9. **timing summary** (`if: always()`) — sentinel 行を `GITHUB_STEP_SUMMARY` へ
 10. **console.log artifact upload** (`if: always()`) — 失敗時の一次調査用
 

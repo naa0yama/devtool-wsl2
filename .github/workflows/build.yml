@@ -270,13 +270,17 @@ jobs:
           #   fetching a 15MB Packages file at ~3.5KB/s before the job
           #   timeout); a smaller MTU avoids fragmentation that never
           #   gets an ICMP frag-needed reply back to the guest.
+          # WHY-NOT: `mtu=` on `-netdev user` — QEMU's user/SLIRP backend
+          #   has no such parameter ("Invalid parameter 'mtu'"); the MTU
+          #   is instead negotiated to the guest via the virtio-net-pci
+          #   device's `host_mtu` property (VIRTIO_NET_F_MTU feature).
           timeout --signal=KILL 1500 \
             qemu-system-x86_64 \
             -enable-kvm -cpu host -smp 4 -m 8G \
             -drive file=image.img,if=virtio,cache=unsafe \
             -drive file=seed.img,if=virtio,format=raw \
-            -netdev user,id=net0,mtu=1280 \
-            -device virtio-net-pci,netdev=net0 \
+            -netdev user,id=net0 \
+            -device virtio-net-pci,netdev=net0,host_mtu=1280 \
             -display none \
             -serial file:console.log \
             || true
