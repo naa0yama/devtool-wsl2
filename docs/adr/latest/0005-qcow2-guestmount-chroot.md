@@ -24,7 +24,7 @@ guestmount (FUSE) が本 ADR 採用後に判明した 2 つの致命的問題の
    user layer の特権降格 (uid 1100) が EACCES で失敗 (一度も成功せず)
 
 qcow2 焼き工程そのものが廃止され、guestmount + chroot 方式は削除された。
-現行方式 (stock cloud image + bootstrap.sh oneliner + KVM boot 検証) は
+現行方式 (stock cloud image + bootstrap.sh oneliner + LXC container 検証) は
 ADR-0007 を参照。
 
 ## Consequences

@@ -22,13 +22,13 @@ PVE VM 上に devtool-wsl2 相当の環境を再現する手段として、
 
 ただし本 ADR の中核原則「**経路 A は経路 B の実行結果のキャッシュ**」は
 生きている: 将来 pre-baked 配布が必要になれば、ADR-0007 の KVM boot
-検証経路の末尾に shutdown + sparsify + upload を追加する形で、
+経路の末尾に shutdown + sparsify + upload を追加する形で、
 実装共有を保ったまま経路 A を復活できる。
 
 ## Consequences
 
 - bootstrap.sh の Single Source of Truth 地位は維持
-  (消費者: WSL2 Dockerfile / VM oneliner / KVM boot CI)
+  (消費者: WSL2 Dockerfile / VM oneliner / LXC bootstrap test CI)
 - finalize.sh の管理コストは経路 A 廃止に伴い消滅
 
 ## Alternatives Considered

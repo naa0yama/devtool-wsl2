@@ -25,15 +25,6 @@ guestmount (FUSE) という同一根本原因に帰着した:
 「WSL2 root tar と同等の out-of-box 体験」であり、展開時の時間コストは
 許容できることが判明した。pre-baked である必然性がない。
 
-配布方式決定後、検証手段として qemu 実 boot (KVM boot test) を採用したが、
-qemu/SLIRP 経路 (userspace NAT、connect-and-reissue モデル) の apt
-bulk-fetch stall が解消せず、PR #449 で timeout+kill-after retry wrapper・
-console.log live streaming・MTU 修正を重ねても収束しなかった。SLIRP は
-runner の通常ネットワーク経路 (LXD bridge / Docker と同系統) と特性が
-異なることが stall の主因と推測される。これを受け、検証スコープを
-「kernel/GRUB/growpart/cloud-init NoCloud を含む実 boot」から
-「bootstrap.sh 実行 + 実行後状態が正しいこと」に絞り直した。
-
 ## Decision
 
 qcow2 の焼き工程と配布を廃止し、以下に置き換える:
@@ -41,19 +32,12 @@ qcow2 の焼き工程と配布を廃止し、以下に置き換える:
 - **配布**: release asset の `bootstrap.sh` を stock Ubuntu cloud image 上で
   `curl -fsSL <release asset URL>/bootstrap.sh | bash` する oneliner。
   cloud-init user-data の `runcmd` に書けば完全無人化可能。
-- **検証**: build.yml に `needs: builds` の統合検証 job を追加。
-  tier 1 (既存 WSL2 Docker build) 完走後、LXC container
-  (`lxc launch ubuntu:${series} c1 -c security.nesting=true`) 上で
-  配布と同一形状の oneliner を `lxc exec` 直接呼び出しで実行し、
+- **検証**: build.yml に `needs: builds` の KVM boot テスト job を追加。
+  tier 1 (既存 WSL2 Docker build) 完走後、GitHub runner の `/dev/kvm` で
+  stock cloud image を実 boot し、配布と同一形状の oneliner で
   bootstrap.sh (`DEVTOOL_ENV=vm`) の完全性を matrix (noble / resolute) 検証。
-  `lxc exec` は同期実行で exit code を直接返すため、旧来の qemu 版で
-  必要だった serial console sentinel grep は不要になる。docker
-  (nested containerization) 動作確認のため `security.nesting=true` を
-  container に付与する。
 - **削除**: qcow2.yml、provision-chroot.sh、passt shadow、
   virt-resize / virt-sparsify、chroot 向け特権降格 workaround。
-  また qemu 版検証で使っていた `tests/vm/user-data.yaml`
-  (NoCloud + serial sentinel script) も、LXC 版への転換に伴い削除する。
 
 本 ADR は ADR-0003 (2 経路提供) と ADR-0005 (guestmount + chroot) を
 supersede する。ADR-0003 の「経路 A は経路 B の実行結果のキャッシュ」原則は、
@@ -64,13 +48,12 @@ shutdown + sparsify + upload を追加する形で引き続き有効。
 
 **正の影響**
 
-- CI 時間: 30-60 分 (失敗) → 数分オーダー (見込み)。かつ検証対象が
+- CI 時間: 30-60 分 (失敗) → 10 分前後 (見込み)。かつ検証対象が
   「ユーザーが実際に通る配布経路そのもの」になる
 - guestmount / FUSE / passt / chroot の workaround 一式が消え、
   保守面積が大幅減
-- LXC container 経由の検証は FUSE も qemu/SLIRP も経由しない
-  (LXD bridge networking + `lxc exec` 同期実行) ため、速度・権限問題に加え
-  SLIRP 経由の apt stall も構造的に回避する
+- qcow2 実 boot は FUSE を経由しない (qemu block layer + guest 内 ext4)
+  ため、速度・権限問題が構造的に発生しない
 - bootstrap.sh が WSL2 (Dockerfile) と VM (oneliner) の
   Single Source of Truth として維持される
 
@@ -80,9 +63,6 @@ shutdown + sparsify + upload を追加する形で引き続き有効。
   10-20 分の構築待ち)
 - 構築時にネットワーク接続が必須
 - release asset から qcow2 が消える (利用手順の docs 更新が必要)
-- 実 boot 特有の failure mode (kernel/GRUB/cloud-init NoCloud/growpart) を
-  CI では検証しない — LXC container は kernel を共有し bootloader を
-  経由しないため、これらの層の不具合は検出できない
 
 ## Alternatives Considered
 
@@ -99,25 +79,8 @@ boot 方式なら bake と検証を同一経路にでき技術的には成立す
 **C. Docker container で DEVTOOL_ENV=vm を検証 (実 boot なし)**
 高速 (3 分) だが systemd / cloud-init / ubuntu user / snapd など
 実 boot との環境差を検証できない。guestmount 問題自体が「実行環境の差」
-起因であり、実 boot 検証を欠くと同型の見逃しを再生産する。当初は不採用。
-
-後日、qemu 実 boot 検証を実装したところ SLIRP 経由の apt stall が
-収束しないことが判明し、検証スコープを「kernel/GRUB/growpart/cloud-init
-NoCloud を含む実 boot」から「bootstrap.sh 実行 + 実行後状態が正しいこと」
-に絞り直した上で、C に近い LXC container 方式へ転換した (採用は
-「Decision」節参照)。C を不採用にした際の懸念 (systemd/cloud-init/ubuntu
-user/snapd などの実 boot との環境差を検証できない) は引き続き残る
-トレードオフだが、CI 収束という制約下で許容する判断とした。
-
-**D. LXD cloud-init (`user.user-data`) 流用**
-既存 `tests/vm/user-data.yaml` の形をある程度維持できるが、LXD 独自の
-datasource への書き直しが必要な上、serial console 相当の出力捕捉が
-標準化されておらず `lxc exec` 直接呼び出しより複雑。同期 exit code
-という直接呼び出しの利点も失う。不採用。
+起因であり、実 boot 検証を欠くと同型の見逃しを再生産する。不採用。
 
 ## History
 
 - 2026-07-22: initial version (supersedes ADR-0003, ADR-0005)
-- 2026-07-22: updated — 検証手段を qemu 実 boot から LXC container 方式に
-  変更 (SLIRP 経由 apt stall が収束しないため)。旧版:
-  [`archive/0007/vm-bootstrap-oneliner-20260722.md`](../archive/0007/vm-bootstrap-oneliner-20260722.md)

@@ -4,7 +4,7 @@ Proxmox VE (PVE) 環境へ stock Ubuntu cloud image を取り込み、
 `bootstrap.sh` oneliner で devtool-wsl2 環境を構築し VM テンプレートを作成する手順。
 
 qcow2 golden image の事前焼き込みは廃止した (ADR-0007)。stock image +
-oneliner により、CI (`kvm-test` job) と同一の provisioning 経路を検証できる。
+oneliner により、CI (`lxc-test` job) と同一の provisioning 経路を検証できる。
 
 関連ファイル:
 
