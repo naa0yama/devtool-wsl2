@@ -81,7 +81,11 @@ jobs:
           file: Dockerfile
           push: false
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # WHY: gha cache backend intermittently fails to reserve blob
+          #   storage ("failed to reserve cache") even under quota; treat
+          #   cache-export failure as non-fatal since the build itself
+          #   (this step's real output) still succeeds.
+          cache-to: type=gha,mode=max,ignore-error=true
           no-cache: ${{ github.event.inputs.no_cache == 'true' }}
           outputs: type=tar,dest=dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar
           tags: ${{ steps.meta.outputs.tags }}
@@ -261,12 +265,18 @@ jobs:
       - name: Boot guest and wait for test sentinel
         run: |
           set -o pipefail
+          # WHY: default SLIRP MTU (1500) hits a PMTU black hole on this
+          #   runner network, stalling bulk downloads (observed: apt
+          #   fetching a 15MB Packages file at ~3.5KB/s before the job
+          #   timeout); a smaller MTU avoids fragmentation that never
+          #   gets an ICMP frag-needed reply back to the guest.
           timeout --signal=KILL 1500 \
             qemu-system-x86_64 \
             -enable-kvm -cpu host -smp 4 -m 8G \
             -drive file=image.img,if=virtio,cache=unsafe \
             -drive file=seed.img,if=virtio,format=raw \
-            -nic user,model=virtio-net-pci \
+            -netdev user,id=net0,mtu=1280 \
+            -device virtio-net-pci,netdev=net0 \
             -display none \
             -serial file:console.log \
             || true
