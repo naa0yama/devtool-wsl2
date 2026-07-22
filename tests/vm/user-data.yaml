@@ -33,11 +33,16 @@ write_files:
       # WHY: prior runs stalled inside apt fetching from the external
       #   mirror over QEMU usermode networking; this probe captures
       #   guest-to-internet throughput so a repeat stall can be
-      #   distinguished from a guest-to-host (UPSTREAM) issue.
+      #   distinguished from a guest-to-host (UPSTREAM) issue. Reads the
+      #   guest's own codename so the probe hits the same archive path
+      #   apt uses (the matrix runs both noble and resolute against this
+      #   same static file).
       echo "DEVTOOL_VM_TEST: net probe begin epoch=$(date +%s)"
+      . /etc/os-release
       curl --silent --show-error --location --max-time 30 \
+      	--retry 2 --retry-delay 2 --retry-connrefused \
       	--output /dev/null --write-out "DEVTOOL_VM_TEST: net probe speed=%{speed_download} bytes/s\n" \
-      	"http://archive.ubuntu.com/ubuntu/dists/noble/Release" || true
+      	"http://archive.ubuntu.com/ubuntu/dists/${VERSION_CODENAME}/Release" || true
 
       echo "DEVTOOL_VM_TEST: bootstrap begin epoch=$(date +%s)"
       curl --fail --silent --show-error --location "${UPSTREAM}/scripts/provision/bootstrap.sh" \
