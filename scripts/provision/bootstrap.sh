@@ -162,9 +162,10 @@ main() {
 
 		if [[ -z "${DEVTOOL_SKIP_FETCH}" ]]; then
 			read -ra CURL_OPTS <<< "${CURL_OPTS:--sfSL --retry 3 --retry-delay 2 --retry-connrefused}"
-			# WHY-NOT: DEVTOOL_REPO/DEVTOOL_TAG-only injection — CI kvm-test serves
-			#   the PR checkout over http (fork PRs have no fetchable merge-commit
-			#   archive on github.com), so a full-URL override seam is required.
+			# WHY-NOT: DEVTOOL_REPO/DEVTOOL_TAG-only injection — the CI bootstrap
+			#   test job serves the PR checkout over http (fork PRs have no
+			#   fetchable merge-commit archive on github.com), so a full-URL
+			#   override seam is required.
 			url="${DEVTOOL_SRC_URL:-https://github.com/${DEVTOOL_REPO}/archive/${DEVTOOL_TAG}.tar.gz}"
 			log_info "Fetching tarball: ${url}"
 
@@ -235,7 +236,7 @@ main() {
 			#   PAM/secure_path, which varies across execution environments
 			#   (Docker build, cloud-init runcmd); runuser (util-linux) uses
 			#   setuid directly and is validated by both the WSL2 Docker
-			#   build and the kvm-test real-boot job.
+			#   build and the CI LXC bootstrap test job.
 			# WHY-NOT: su - user -c — spawns the user's login shell (fish),
 			#   whose availability mid-provision is not guaranteed.
 			HOME="/home/${DEFAULT_USERNAME}" runuser -u "${DEFAULT_USERNAME}" -- \

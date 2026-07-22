@@ -81,7 +81,11 @@ jobs:
           file: Dockerfile
           push: false
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # WHY: gha cache backend intermittently fails to reserve blob
+          #   storage ("failed to reserve cache") even under quota; treat
+          #   cache-export failure as non-fatal since the build itself
+          #   (this step's real output) still succeeds.
+          cache-to: type=gha,mode=max,ignore-error=true
           no-cache: ${{ github.event.inputs.no_cache == 'true' }}
           outputs: type=tar,dest=dwsl2-${{ env.COMMIT_SHORT_SHA }}.tar
           tags: ${{ steps.meta.outputs.tags }}
@@ -189,16 +193,16 @@ jobs:
           \`\`\`
           EOF
 
-  kvm-test:
-    name: KVM boot test (${{ matrix.series }})
+  lxc-test:
+    name: LXC bootstrap test (${{ matrix.series }})
     needs: builds
     runs-on: ubuntu-latest
     # WHY-NOT: run on merged PR (action == 'closed') — the immediately
     #   preceding synchronize event already validated the identical merge
     #   content, and `builds` (release upload) does not depend on this job,
-    #   so a repeat run adds ~12min per series with no new information.
+    #   so a repeat run adds no new information.
     if: ${{ github.event.action != 'closed' }}
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: read
     strategy:
@@ -210,36 +214,27 @@ jobs:
       - name: Checkout from repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install VM boot tools
+      - name: Ensure LXD is available
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes \
-            qemu-system-x86 \
-            cloud-image-utils
+          # WHY-NOT: assume preinstalled — GH-hosted runner images have
+          #   dropped/re-added the lxd snap across image revisions; probing
+          #   first keeps this job working either way without a hard
+          #   dependency on current runner-image contents.
+          if ! command -v lxc > /dev/null 2>&1; then
+            sudo snap install lxd
+          fi
+          sudo lxd waitready
+          sudo lxd init --auto
 
-      - name: Enable KVM acceleration
-        run: |
-          test -e /dev/kvm
-          sudo chmod 0666 /dev/kvm
-
-      - name: Download Ubuntu ${{ matrix.series }} cloud image
-        run: |
-          # WHY-NOT: hardcode URL — series-map.sh is the single source of truth;
-          #   adding a new series or changing the URL pattern touches only that file
-          # shellcheck disable=SC1091
-          source scripts/image/series-map.sh
-          url=$(series_to_url "${{ matrix.series }}")
-          curl --silent --show-error --fail --location \
-            --retry 3 --retry-delay 5 --retry-connrefused \
-            --output image.img \
-            "${url}"
-
-      - name: Expand guest disk for provisioning headroom
-        run: |
-          # WHY: cloud-init growpart auto-expands the partition/fs at real
-          #   boot (unlike the guestmount+chroot path this replaces, which
-          #   never boots the guest and needed virt-resize instead).
-          qemu-img resize image.img +20G
+          # WHY: Docker is preinstalled and running on GH-hosted runners and
+          #   sets the iptables FORWARD chain's default policy to DROP,
+          #   accepting only its own docker0/network bridges explicitly.
+          #   lxdbr0 is created afterward, so its traffic hits that default
+          #   DROP — confirmed via net-probe showing 0 bytes/s guest-to-
+          #   internet despite host-to-container bridge traffic working
+          #   fine. Explicitly accepting lxdbr0 forwarding restores egress.
+          sudo iptables -I FORWARD -i lxdbr0 -j ACCEPT
+          sudo iptables -I FORWARD -o lxdbr0 -j ACCEPT
 
       - name: Serve PR checkout for guest fetch
         run: |
@@ -254,43 +249,104 @@ jobs:
           cp tests/vm/verify.sh www/tests/vm/verify.sh
           python3 -m http.server 8000 --directory www &
 
-      - name: Build cloud-init seed image
+      - name: Launch LXC container (${{ matrix.series }})
         run: |
-          cloud-localds seed.img tests/vm/user-data.yaml
+          # WHY: `security.nesting=true` is required for dockerd to run
+          #   inside the container (nested containerization); without it
+          #   the docker layer of bootstrap.sh fails to start.
+          # WHY-NOT: unconditional `ubuntu:` remote — it only carries
+          #   released series; a matrix entry named before its stable
+          #   release would hard-fail here. Fall back to `ubuntu-daily:`
+          #   (devel/interim builds) so adding a not-yet-released series
+          #   to the matrix does not require a workflow change.
+          if ! sudo lxc launch "ubuntu:${{ matrix.series }}" c1 -c security.nesting=true; then
+            echo "ubuntu:${{ matrix.series }} not found, falling back to ubuntu-daily:${{ matrix.series }}" >&2
+            sudo lxc launch "ubuntu-daily:${{ matrix.series }}" c1 -c security.nesting=true
+          fi
+          # WHY: `ubuntu:` images ship LXD's own cloud-init datasource (not
+          #   NoCloud); waiting for it to settle avoids racing bootstrap.sh
+          #   against a container whose network/apt sources are not yet up.
+          timeout 120 sudo lxc exec c1 -- cloud-init status --wait
 
-      - name: Boot guest and wait for test sentinel
+          # WHY: computed once here (not re-derived per `lxc exec` call) —
+          #   the LXD bridge gateway is stable for the container's lifetime;
+          #   exporting via GITHUB_ENV lets later steps reference it as a
+          #   plain string instead of re-running `ip route`/`awk` inside
+          #   each nested `bash -c`. UPSTREAM is derived from GATEWAY here
+          #   too (not re-derived per step) so later steps reference a
+          #   single plain string instead of rebuilding the same literal.
+          GATEWAY="$(sudo lxc exec c1 -- bash -c 'ip route show default' | awk '{print $3}')"
+          echo "GATEWAY=${GATEWAY}" >> "$GITHUB_ENV"
+          echo "UPSTREAM=http://${GATEWAY}:8000" >> "$GITHUB_ENV"
+
+      - name: Probe guest-to-internet apt throughput (diagnostic)
         run: |
-          set -o pipefail
-          timeout --signal=KILL 1500 \
-            qemu-system-x86_64 \
-            -enable-kvm -cpu host -smp 4 -m 8G \
-            -drive file=image.img,if=virtio,cache=unsafe \
-            -drive file=seed.img,if=virtio,format=raw \
-            -nic user,model=virtio-net-pci \
-            -display none \
-            -serial file:console.log \
-            || true
+          # WHY: kept as a low-cost diagnostic seam — if a bulk-fetch stall
+          #   reappears, this isolates guest-to-internet throughput from a
+          #   bootstrap-internal cause. The equivalent host-side probe from
+          #   the qemu job is dropped: the WSL2 build job (`builds`, same
+          #   runner) already exercises host egress successfully every run.
+          sudo lxc exec c1 -- bash -c '
+            . /etc/os-release
+            curl --silent --show-error --location --max-time 30 \
+              --retry 2 --retry-delay 2 --retry-connrefused \
+              --output /dev/null --write-out "DEVTOOL_VM_TEST: net probe speed=%{speed_download} bytes/s\n" \
+              "http://archive.ubuntu.com/ubuntu/dists/${VERSION_CODENAME}/Release"
+          ' | tee net-probe.log || echo "DEVTOOL_VM_TEST: net probe failed" | tee -a net-probe.log
 
-          echo "===== console.log ====="
-          cat console.log || true
+      - name: Run bootstrap.sh in container
+        run: |
+          # WHY: `lxc exec` is a synchronous call that returns the guest
+          #   command's exit code directly — unlike the qemu job this
+          #   replaces, no serial-console sentinel string is needed to
+          #   detect pass/fail.
+          echo "DEVTOOL_VM_TEST: bootstrap begin epoch=$(date +%s)" | tee -a net-probe.log
+          # WHY: UPSTREAM is resolved once in the "Launch LXC container" step
+          #   and substituted here by GitHub Actions expression evaluation
+          #   (not by the inner shell) — this avoids re-deriving it via
+          #   `ip route`/`awk` inside every nested `bash -c`.
+          UPSTREAM="${{ env.UPSTREAM }}"
+          sudo lxc exec c1 -- bash -c '
+            set -euo pipefail
+            curl --fail --silent --show-error --location "'"${UPSTREAM}"'/scripts/provision/bootstrap.sh" \
+              | UPSTREAM="'"${UPSTREAM}"'" DEVTOOL_SRC_URL="'"${UPSTREAM}"'/devtool-src.tar.gz" DEVTOOL_ENV=vm bash
+          '
+          echo "DEVTOOL_VM_TEST: bootstrap end epoch=$(date +%s)" | tee -a net-probe.log
 
-          grep --quiet "^DEVTOOL_VM_TEST: PASS$" console.log
+      - name: Run verify.sh in container
+        run: |
+          echo "DEVTOOL_VM_TEST: verify begin epoch=$(date +%s)" | tee -a net-probe.log
+          UPSTREAM="${{ env.UPSTREAM }}"
+          sudo lxc exec c1 -- bash -c '
+            set -euo pipefail
+            curl --fail --silent --show-error --location \
+              --output /opt/devtool-verify.sh "'"${UPSTREAM}"'/tests/vm/verify.sh"
+            bash /opt/devtool-verify.sh
+          '
+          echo "DEVTOOL_VM_TEST: verify end epoch=$(date +%s)" | tee -a net-probe.log
 
       - name: Write phase timing summary
         if: ${{ always() }}
         run: |
           {
-            echo "## KVM boot test timing (${{ matrix.series }})"
+            echo "## LXC bootstrap test timing (${{ matrix.series }})"
             echo ''
             echo '```'
-            grep --extended-regexp "^DEVTOOL_VM_TEST:" console.log || echo "no sentinel lines captured"
+            grep --extended-regexp "^DEVTOOL_VM_TEST:" net-probe.log 2> /dev/null || echo "no probe log captured"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload console log
+      - name: Collect container log
+        if: ${{ always() }}
+        run: |
+          sudo lxc exec c1 -- journalctl --no-pager > container.log 2> /dev/null || echo "no container log captured" > container.log
+
+      - name: Upload container log
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: devtool-${{ matrix.series }}-kvm-console
-          path: console.log
+          name: devtool-${{ matrix.series }}-lxc-log
+          path: |
+            container.log
+            net-probe.log
           retention-days: 7
