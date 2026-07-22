@@ -62,6 +62,13 @@ build.yml
    (`-enable-kvm -cpu host -smp 4 -m 8G -serial file:console.log`)、
    `timeout --signal=KILL 1500` で保護。`console.log` から
    `DEVTOOL_VM_TEST: PASS` sentinel を grep
+
+   guest netdev は `-netdev user,id=net0,mtu=1280 -device
+   virtio-net-pci,netdev=net0` (`-nic user,model=virtio-net-pci` から変更)。
+   既定 MTU (1500) だと runner network 上で PMTU black hole が発生し、
+   ICMP frag-needed が guest へ返らず apt の bulk fetch が数 KB/s まで
+   劣化する事象を観測 (15MB Packages file 取得が job timeout に到達)。
+   MTU 1280 で fragmentation を回避し安定化。
 9. **timing summary** (`if: always()`) — sentinel 行を `GITHUB_STEP_SUMMARY` へ
 10. **console.log artifact upload** (`if: always()`) — 失敗時の一次調査用
 
@@ -77,6 +84,10 @@ mid-provision で削除するため)。代わりに serial-sentinel 方式を採
 cloud-init runcmd (root)
   └─ /opt/devtool-vm-test.sh
        ├─ exec > /dev/ttyS0 2>&1  (全出力を serial へ)
+       ├─ net probe (/etc/os-release の VERSION_CODENAME で
+       │    archive.ubuntu.com の Release を破棄取得し speed_download を
+       │    出力。guest→internet 経路のスループット計測、bootstrap 停止時
+       │    に guest→host (UPSTREAM) 障害と切り分ける)
        ├─ curl UPSTREAM/scripts/provision/bootstrap.sh | \
        │    DEVTOOL_SRC_URL=UPSTREAM/devtool-src.tar.gz bash
        │    (main() が system 層 → user 層を実行)
