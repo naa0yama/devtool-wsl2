@@ -282,15 +282,17 @@ jobs:
       - name: Boot guest and wait for test sentinel
         run: |
           set -o pipefail
-          # WHY: default SLIRP MTU (1500) hits a PMTU black hole on this
-          #   runner network, stalling bulk downloads (observed: apt
-          #   fetching a 15MB Packages file at ~3.5KB/s before the job
-          #   timeout); a smaller MTU avoids fragmentation that never
-          #   gets an ICMP frag-needed reply back to the guest.
+          # WHY: `-nic user,model=virtio-net-pci` has no seam for passing
+          #   an MTU value to the guest; `-netdev user` + `-device
+          #   virtio-net-pci,host_mtu=...` negotiates it via the
+          #   VIRTIO_NET_F_MTU feature instead. This is a QEMU CLI fix, not
+          #   a fix for the apt bulk-fetch stall itself: SLIRP's
+          #   connect-and-reissue model delegates the host→internet leg to
+          #   the host TCP stack, so guest-side MTU cannot affect its PMTU.
+          #   The actual apt stall cause and mitigation are documented in
+          #   docs/specs/ci/vm-boot-test.md (step 9).
           # WHY-NOT: `mtu=` on `-netdev user` — QEMU's user/SLIRP backend
-          #   has no such parameter ("Invalid parameter 'mtu'"); the MTU
-          #   is instead negotiated to the guest via the virtio-net-pci
-          #   device's `host_mtu` property (VIRTIO_NET_F_MTU feature).
+          #   has no such parameter ("Invalid parameter 'mtu'").
           timeout --signal=KILL 1500 \
             qemu-system-x86_64 \
             -enable-kvm -cpu host -smp 4 -m 8G \

@@ -72,12 +72,35 @@ build.yml
 
    guest netdev は `-netdev user,id=net0 -device
    virtio-net-pci,netdev=net0,host_mtu=1280` (`-nic user,model=virtio-net-pci`
-   から変更)。既定 MTU (1500) だと runner network 上で PMTU black hole が
-   発生し、ICMP frag-needed が guest へ返らず apt の bulk fetch が数 KB/s
-   まで劣化する事象を観測 (15MB Packages file 取得が job timeout に到達)。
-   MTU は `-netdev user` に直接指定できない (`Invalid parameter 'mtu'`) ため
-   `-device virtio-net-pci` の `host_mtu` (VIRTIO_NET_F_MTU 経由の negotiation)
-   で guest へ伝え、fragmentation を回避し安定化。
+   から変更)。MTU は `-netdev user` に直接指定できない (`Invalid parameter
+   'mtu'`) ため `-device virtio-net-pci` の `host_mtu`
+   (VIRTIO_NET_F_MTU 経由の negotiation) で guest へ伝える。この変更は
+   QEMU CLI パラメータの構文誤り (旧 `-nic` 指定では MTU を渡す経路が
+   存在しない) を修正するものであり、host→internet 経路の apt bulk-fetch
+   停滞そのものの原因ではない (SLIRP は connect-and-reissue モデルで
+   host 側 TCP スタックへ委譲するため、guest 側 MTU 設定は host→internet
+   leg の PMTU に影響しない)。
+
+   apt bulk-fetch (`universe amd64 Packages` 15MB 取得) の停滞は
+   `archive.ubuntu.com` 側の既知・未解決の runner/mirror flakiness
+   (`actions/runner-images#12949`, `orgs/community/discussions/172048`) と
+   一致することを確認した。同一リポジトリの WSL2 Docker build 経路
+   (plain `archive.ubuntu.com`、mirror 切替なし) が約 9 割成功している
+   実績から、mirror 切替 (別 regional mirror への変更) は輻輳先を
+   移すだけで根本対策にならないと判断し、不採用とした。
+
+   代わりに `scripts/provision/system/10-apt-base.sh` の
+   `apt-get update` 呼び出しを `timeout 300` + 最大 3 回リトライで
+   包む (`_apt_get_update`)。apt 自身の `Acquire::http::Timeout` は
+   dead-connection (0 byte 受信) 検知のみで、生きてはいるが極端に遅い
+   trickle 転送は検知できない — shell 側 timeout は転送状態に関わらず
+   強制中断し、リトライで新規コネクションを張り直すことで trickle にも
+   対応する。この修正は全 provisioning target 共通 (bare/wsl2/vm/container)
+   に適用され、CI guest 限定ではない。`tests/vm/user-data.yaml` の
+   `/etc/apt/apt.conf.d/80-devtool-vm-test-retries`
+   (`Acquire::Retries`/`Acquire::http::Timeout`) は CI guest 限定のまま
+   併用し、update 以外の apt 操作 (upgrade/install) の一時的な mirror
+   不調からの復帰を早める。
 10. **timing summary** (`if: always()`) — `host-probe.log` の内容 + sentinel 行を
     `GITHUB_STEP_SUMMARY` へ
 11. **console.log artifact upload** (`if: always()`) — `console.log` と
