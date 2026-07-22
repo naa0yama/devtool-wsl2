@@ -65,10 +65,20 @@ build.yml
    probe を揃えることで両者を直接比較可能にし、bulk-fetch 停滞が runner
    全体のネットワーク特性 (qemu/SLIRP 経路の外でも再現する) か、
    guest/SLIRP proxy 固有かを切り分ける
-9. **qemu 起動 + sentinel 待機** — foreground boot
+9. **qemu 起動 + sentinel 待機** — background boot
    (`-enable-kvm -cpu host -smp 4 -m 8G -serial file:console.log`)、
-   `timeout --signal=KILL 1500` で保護。`console.log` から
-   `DEVTOOL_VM_TEST: PASS` sentinel を grep
+   `tail --follow=name --retry console.log` で guest 出力を Actions log へ
+   live streaming しつつ `timeout --signal=KILL 1500 tail --pid=<qemu-pid>
+   -f /dev/null` で qemu プロセスの終了 (または 1500s 到達時の SIGKILL) を
+   待つ。`console.log` から `DEVTOOL_VM_TEST: PASS` sentinel を grep
+
+   WHY: foreground boot (`timeout ... qemu-system-x86_64 ...`) は
+   `console.log` をファイルへ書くのみで、プロセスが exit/SIGKILL される
+   まで内容が見えない — 正常完走時は guest 側の `poweroff`
+   (`tests/vm/user-data.yaml` の `_on_exit` trap) で早期に qemu が終了する
+   ため実害は小さいが、stall/hang 発生時は最大 1500s 間 Actions log が
+   完全な沈黙となり、健全な低速進行と真の hang を区別できない。qemu を
+   background 化し `console.log` を `tail` することでこの区別が可能になる。
 
    guest netdev は `-netdev user,id=net0 -device
    virtio-net-pci,netdev=net0,host_mtu=1280` (`-nic user,model=virtio-net-pci`

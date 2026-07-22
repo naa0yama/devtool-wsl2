@@ -293,19 +293,42 @@ jobs:
           #   docs/specs/ci/vm-boot-test.md (step 9).
           # WHY-NOT: `mtu=` on `-netdev user` — QEMU's user/SLIRP backend
           #   has no such parameter ("Invalid parameter 'mtu'").
-          timeout --signal=KILL 1500 \
-            qemu-system-x86_64 \
+          #
+          # WHY: running qemu in the foreground under `timeout` writes guest
+          #   output only to console.log, which is `cat`'d after the process
+          #   exits/is killed — a genuine hang and healthy-but-slow progress
+          #   both look like up to 1500s of silence in the Actions log.
+          #   Backgrounding qemu and `tail`-ing console.log streams guest
+          #   boot/apt/bootstrap output live, and `tail --pid=... -f
+          #   /dev/null` blocks on the qemu PID without a manual poll loop.
+          touch console.log
+          qemu-system-x86_64 \
             -enable-kvm -cpu host -smp 4 -m 8G \
             -drive file=image.img,if=virtio,cache=unsafe \
             -drive file=seed.img,if=virtio,format=raw \
             -netdev user,id=net0 \
             -device virtio-net-pci,netdev=net0,host_mtu=1280 \
             -display none \
-            -serial file:console.log \
-            || true
+            -serial file:console.log &
+          QEMU_PID=$!
 
-          echo "===== console.log ====="
-          cat console.log || true
+          tail --follow=name --retry console.log &
+          TAIL_PID=$!
+
+          timeout --signal=KILL 1500 tail --pid="${QEMU_PID}" -f /dev/null || true
+          # WHY: unconditional `kill -KILL` (no `kill -0` pre-check) —
+          #   this step runs under GitHub Actions' default `bash -e`; a
+          #   guarded-but-unprotected `kill -KILL` after a `kill -0` check
+          #   still races (qemu can exit between the two calls) and, under
+          #   `-e`, a failing `kill -KILL` on an already-dead PID would abort
+          #   the script before the TAIL_PID cleanup and the sentinel grep
+          #   below run. `2> /dev/null || true` makes killing an
+          #   already-exited PID a harmless no-op instead.
+          kill -KILL "${QEMU_PID}" 2> /dev/null || true
+          wait "${QEMU_PID}" || true
+
+          kill "${TAIL_PID}" 2> /dev/null || true
+          wait "${TAIL_PID}" 2> /dev/null || true
 
           grep --quiet "^DEVTOOL_VM_TEST: PASS$" console.log
 
