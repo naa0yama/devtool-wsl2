@@ -4,6 +4,7 @@
 devtool 環境を構築する手順。
 
 関連ファイル:
+
 - ブートストラップ: [`../../scripts/provision/bootstrap.sh`](../../scripts/provision/bootstrap.sh)
 - bootstrap 設計: [`../specs/components/bootstrap.md`](../specs/components/bootstrap.md)
 
@@ -11,10 +12,10 @@ devtool 環境を構築する手順。
 
 ## 1. 前提
 
-| 項目 | 値 |
-|------|----|
-| OS | Ubuntu 24.04 LTS (Noble Numbat) |
-| 権限 | sudo 権限のあるユーザー |
+| 項目         | 値                               |
+| ------------ | -------------------------------- |
+| OS           | Ubuntu 24.04 LTS (Noble Numbat)  |
+| 権限         | sudo 権限のあるユーザー          |
 | ネットワーク | GitHub Releases へのアクセス可能 |
 
 ---

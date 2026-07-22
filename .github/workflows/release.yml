@@ -93,7 +93,7 @@ jobs:
       - name: Upload provision assets to Release
         # WHY: build.yml が同一 COMMIT_SHORT_SHA で release を先に作成する前提。
         # softprops/action-gh-release は tag 既存でも upsert するため
-        # WSL2 tar / qcow2 / provision tarball が同一 release に並ぶ。
+        # WSL2 tar / provision tarball が同一 release に並ぶ。
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           name: devtool-WSL2 image ${{ env.COMMIT_SHORT_SHA }}

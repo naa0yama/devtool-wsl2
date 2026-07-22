@@ -932,7 +932,7 @@ main_wsl2() {
 
 main_vm() {
 	echo "============================================"
-	echo " Devtool Setup (VM / qcow2 golden image)"
+	echo " Devtool Setup (VM)"
 	echo "============================================"
 	echo ""
 

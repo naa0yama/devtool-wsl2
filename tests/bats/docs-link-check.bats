@@ -18,8 +18,8 @@ BOOTSTRAP_SPEC_MD="${DOCS_ROOT}/specs/components/bootstrap.md"
 	assert_success
 }
 
-@test "pve_import_uid_expected_is_1100_and_shell_bash" {
-	run grep --fixed-strings "/bin/bash" "${PVE_IMPORT_MD}"
+@test "pve_import_uid_expected_is_1100_and_shell_fish" {
+	run grep --fixed-strings "/usr/bin/fish" "${PVE_IMPORT_MD}"
 	assert_success
 }
 

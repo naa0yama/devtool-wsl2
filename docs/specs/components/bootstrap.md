@@ -9,58 +9,69 @@ source_spec: ../../../.claude/artifacts/plans/2026-07-20-qcow2-fixed-user-ciuser
 
 ## 1. 概要
 
-`scripts/provision/bootstrap.sh` は devtool-wsl2 の 3 経路
-(WSL2 baked / qcow2 baked / bare Ubuntu) 共通の provisioning entry point。
-stage 0 (provision tarball 取得) → phase 1 (system 層) → phase 2 (user 層) の順で実行する。
+`scripts/provision/bootstrap.sh` は devtool-wsl2 の 2 経路
+(WSL2 baked / bare Ubuntu・VM) 共通の provisioning entry point。
+`main()` が source 取得 → system 層 → user 層 の順で実行する
+(stage 0 / phase 1 / phase 2 は bare Ubuntu の curl oneliner 経路のみが使う自己再実行モデル、下記「3. 実行フロー」参照)。
 
-関連 ADR: [`../../adr/latest/0006-common-bootstrap-vestibule-user.md`](../../adr/latest/0006-common-bootstrap-vestibule-user.md)
+関連 ADR: [`../../adr/latest/0006-common-bootstrap-vestibule-user.md`](../../adr/latest/0006-common-bootstrap-vestibule-user.md)、
+[`../../adr/latest/0007-vm-bootstrap-oneliner.md`](../../adr/latest/0007-vm-bootstrap-oneliner.md)
 
 呼び出し元:
 
-| 経路 | 呼び出し方法 |
-|------|-------------|
-| qcow2 baked | `scripts/image/provision-chroot.sh` 経由 (guestmount+chroot) |
-| WSL2 / Docker | Dockerfile / build.yml の `RUN` loop |
-| bare Ubuntu | `curl … | sudo bash` 直接 |
+| 経路                             | 呼び出し方法                                                                                                                                                   |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WSL2 / Docker                    | Dockerfile / build.yml の `RUN` loop (provision scripts を直接実行)                                                                                            |
+| bare Ubuntu / VM (Proxmox VE 等) | `curl … \| sudo bash` 直接 (`main()` 実行)                                                                                                                     |
+| CI 検証 (kvm-test)               | build.yml が `main()` を KVM boot 上で実行し、`DEVTOOL_SRC_URL` で PR checkout を配信して完成度を検証 (詳細: [`../ci/vm-boot-test.md`](../ci/vm-boot-test.md)) |
 
 ---
 
 ## 2. 環境変数
 
-| 変数 | デフォルト | 説明 |
-|------|-----------|------|
-| `DEVTOOL_ENV` | auto-detect | 実行環境 (`wsl2`/`vm`/`container`/`bare`) |
-| `PROVISION_ROOT` | (unset) | テスト seam: provision dir を直接指定するとfetch をスキップ |
-| `DEVTOOL_USER_SHELL` | `/bin/bash` | phase 1 で作成するユーザーのシェル |
-| `DEVTOOL_PHASE2_UID` | `${EUID}` | phase 2 実行 UID 検証値 (CI seam 用) |
-| `DEFAULT_USERNAME` | `user` | 作成するユーザー名 |
-| `DEVTOOL_TAG` | `main` | Release tarball 取得タグ |
-| `DEVTOOL_REPO` | `naa0yama/devtool-wsl2` | GitHub リポジトリ |
-| `DEVTOOL_SKIP_PROVISION_FETCH` | (unset) | 設定時 tarball fetch をスキップ |
+| 変数                           | デフォルト              | 説明                                                                                                                                                                                                                    |
+| ------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEVTOOL_ENV`                  | auto-detect             | 実行環境 (`wsl2`/`vm`/`container`/`bare`)                                                                                                                                                                               |
+| `PROVISION_ROOT`               | (unset)                 | テスト seam: provision dir を直接指定するとfetch をスキップ                                                                                                                                                             |
+| `DEVTOOL_USER_SHELL`           | `/bin/bash`             | phase 1 で作成するユーザーのシェル                                                                                                                                                                                      |
+| `DEVTOOL_PHASE2_UID`           | `${EUID}`               | phase 2 実行 UID 検証値 (CI seam 用)                                                                                                                                                                                    |
+| `DEFAULT_USERNAME`             | `user`                  | 作成するユーザー名                                                                                                                                                                                                      |
+| `DEVTOOL_TAG`                  | `main`                  | Release tarball 取得タグ                                                                                                                                                                                                |
+| `DEVTOOL_REPO`                 | `naa0yama/devtool-wsl2` | GitHub リポジトリ                                                                                                                                                                                                       |
+| `DEVTOOL_SRC_URL`              | (unset)                 | `main()` の source archive 取得先 full-URL override。未設定時は `https://github.com/${DEVTOOL_REPO}/archive/${DEVTOOL_TAG}.tar.gz`。kvm-test が fork PR の checkout を `git archive` + `http.server` で配信する際に使用 |
+| `DEVTOOL_SRC_ROOT`             | (unset)                 | テスト seam: source root を直接指定すると archive fetch をスキップ                                                                                                                                                      |
+| `DEVTOOL_SKIP_PROVISION_FETCH` | (unset)                 | 設定時 tarball fetch をスキップ (stage 0 経路)                                                                                                                                                                          |
 
 ---
 
 ## 3. 実行フロー
 
+`curl | sudo bash` の oneliner (bare Ubuntu / VM / kvm-test) は自己再実行後、
+`DEVTOOL_BOOTSTRAP_PHASE` 未設定なら `main()` を実行する
+(`DEVTOOL_BOOTSTRAP_PHASE=1`/`2` は system/user 層を分割再実行する legacy な
+dispatch で、現行の呼び出し元はいずれも使用しない — 未設定時の `main()` が
+唯一の実運用パス)。
+
 ```
-bootstrap.sh
+bootstrap.sh (top-level exec, curl | sudo bash)
   │
-  ├─ stage 0 (bare Ubuntu 経路のみ)
-  │    ├─ devtool-provision.tar.gz を GitHub Releases から fetch
-  │    ├─ /tmp/devtool-provision/ に展開
-  │    └─ chmod -R a+rX /tmp/devtool-provision/  (umask 逸脱対策)
+  ├─ self-download → /tmp/devtool-bootstrap.sh へ保存し再 exec
   │
-  ├─ phase 1 (EUID=0, system 層)
-  │    ├─ system/15-user.sh  — uid=1100 user 作成 (shell=/bin/bash)
-  │    ├─ system/20-docker-engine.sh  — docker-ce インストール
-  │    ├─ system/40-cleanup-ubuntu.sh  — 不要パッケージ除去
-  │    └─ exec sudo -u user ... bootstrap.sh  (phase 2 へ再実行)
-  │
-  └─ phase 2 (EUID=1100, user 層)
-       ├─ user/10-mise-install.sh
-       ├─ user/20-bashrc.sh
-       ├─ user/30-fish-config.sh
-       └─ user/40-mise-config.sh
+  └─ main()
+       ├─ source 取得
+       │    ├─ DEVTOOL_SRC_ROOT 指定時 → そのディレクトリを使用 (fetch skip)
+       │    └─ 未指定時 → DEVTOOL_SRC_URL (未設定なら GitHub archive URL) を
+       │         curl で取得し ${DEVTOOL_CACHE}/src に展開
+       │
+       ├─ system 層 (EUID=0, sudo/root)
+       │    └─ scripts/provision/system/*.sh を sort 順に全実行
+       │         (15-user.sh で uid=1100 user 作成、20-docker-engine.sh で
+       │         docker-ce install、40-cleanup-ubuntu.sh で不要パッケージ除去 等)
+       │
+       └─ user 層 (runuser -u user)
+            └─ scripts/provision/user/*.sh を sort 順に全実行
+                 (10-mise-install.sh / 20-bashrc.sh / 30-fish-config.sh /
+                 40-mise-config.sh 等)
 ```
 
 ---
@@ -70,27 +81,32 @@ bootstrap.sh
 `detect_env()` が `/proc/version` / `/.dockerenv` / `systemd-detect-virt` を検査して
 `DEVTOOL_ENV` を自動設定する。テスト時は環境変数で上書き可能 (seam-2)。
 
-| 判定条件 | 値 |
-|----------|----|
+| 判定条件                                                        | 値          |
+| --------------------------------------------------------------- | ----------- |
 | `/.dockerenv` 存在 または cgroup に `docker`/`containerd`/`lxc` | `container` |
-| `/proc/version` に `microsoft` または `WSL` | `wsl2` |
-| `systemd-detect-virt` が `kvm`/`qemu`/`vmware` 等 | `vm` |
-| いずれにも該当しない | `bare` |
+| `/proc/version` に `microsoft` または `WSL`                     | `wsl2`      |
+| `systemd-detect-virt` が `kvm`/`qemu`/`vmware` 等               | `vm`        |
+| いずれにも該当しない                                            | `bare`      |
 
 ---
 
-## 5. stage 0: self-download (bare Ubuntu 経路のみ)
+## 5. main() の source 取得
 
-`PROVISION_ROOT` が未設定かつ `DEVTOOL_SKIP_PROVISION_FETCH` が未設定の場合、
-GitHub Releases から provision tarball を fetch する。
+`DEVTOOL_SRC_ROOT` が未設定の場合、`main()` は archive を curl で取得し
+`${DEVTOOL_CACHE}/src` (root 実行時 `/var/cache/devtool`、それ以外
+`~/.cache/devtool`) へ展開する。
 
 ```
-PROVISION_ASSET_URL=
-  https://github.com/${DEVTOOL_REPO}/releases/download/${DEVTOOL_TAG}/devtool-provision.tar.gz
+url=${DEVTOOL_SRC_URL:-https://github.com/${DEVTOOL_REPO}/archive/${DEVTOOL_TAG}.tar.gz}
 ```
 
-fetch 後に `chmod -R a+rX` を実行して、umask 逸脱環境でも phase 2 (uid=1100) から
-読取可能にする。
+sha256 が前回取得時と同じ場合は再展開をスキップする。kvm-test は
+`DEVTOOL_SRC_URL=http://10.0.2.2:8000/...` で fork PR の checkout を
+guest から取得させる (詳細: [`../ci/vm-boot-test.md`](../ci/vm-boot-test.md))。
+
+legacy な `DEVTOOL_BOOTSTRAP_PHASE=1`/`2` 経路 (現行呼び出し元は未使用) は
+別途 `PROVISION_ASSET_URL` (`devtool-provision.tar.gz`, `latest` タグ固定)
+から取得し `chmod -R a+rX` で phase 2 (uid=1100) から読取可能にする。
 
 ---
 
@@ -98,10 +114,10 @@ fetch 後に `chmod -R a+rX` を実行して、umask 逸脱環境でも phase 2 
 
 `release.yml` が以下の 2 asset を GitHub Releases にアップロードする:
 
-| ファイル | 内容 |
-|----------|------|
-| `devtool-bootstrap.sh` | bootstrap.sh のコピー (curl 直接実行可能) |
-| `devtool-provision.tar.gz` | `scripts/provision/` のアーカイブ |
+| ファイル                   | 内容                                      |
+| -------------------------- | ----------------------------------------- |
+| `devtool-bootstrap.sh`     | bootstrap.sh のコピー (curl 直接実行可能) |
+| `devtool-provision.tar.gz` | `scripts/provision/` のアーカイブ         |
 
 ---
 
@@ -109,7 +125,8 @@ fetch 後に `chmod -R a+rX` を実行して、umask 逸脱環境でも phase 2 
 
 - [`scripts/provision/bootstrap.sh`](../../../scripts/provision/bootstrap.sh)
 - [`docs/adr/latest/0006-common-bootstrap-vestibule-user.md`](../../adr/latest/0006-common-bootstrap-vestibule-user.md)
-- [`docs/guides/bare-ubuntu.md`](../guides/bare-ubuntu.md)
-- [`docs/guides/pve-import.md`](../guides/pve-import.md)
+- [`docs/guides/bare-ubuntu.md`](../../guides/bare-ubuntu.md)
+- [`docs/guides/pve-import.md`](../../guides/pve-import.md)
 - [`.github/workflows/release.yml`](../../../.github/workflows/release.yml)
-- [`.github/workflows/qcow2.yml`](../../../.github/workflows/qcow2.yml)
+- [`.github/workflows/build.yml`](../../../.github/workflows/build.yml) (`kvm-test` job)
+- [`docs/specs/ci/vm-boot-test.md`](../ci/vm-boot-test.md)

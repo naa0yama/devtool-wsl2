@@ -188,3 +188,109 @@ jobs:
           .\devtool.ps1 -skipBackupAndRestore -skipWSLDefault -Tag \$tag
           \`\`\`
           EOF
+
+  kvm-test:
+    name: KVM boot test (${{ matrix.series }})
+    needs: builds
+    runs-on: ubuntu-latest
+    # WHY-NOT: run on merged PR (action == 'closed') — the immediately
+    #   preceding synchronize event already validated the identical merge
+    #   content, and `builds` (release upload) does not depend on this job,
+    #   so a repeat run adds ~12min per series with no new information.
+    if: ${{ github.event.action != 'closed' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [noble, resolute]
+
+    steps:
+      - name: Checkout from repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install VM boot tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            qemu-system-x86 \
+            cloud-image-utils
+
+      - name: Enable KVM acceleration
+        run: |
+          test -e /dev/kvm
+          sudo chmod 0666 /dev/kvm
+
+      - name: Download Ubuntu ${{ matrix.series }} cloud image
+        run: |
+          # WHY-NOT: hardcode URL — series-map.sh is the single source of truth;
+          #   adding a new series or changing the URL pattern touches only that file
+          # shellcheck disable=SC1091
+          source scripts/image/series-map.sh
+          url=$(series_to_url "${{ matrix.series }}")
+          curl --silent --show-error --fail --location \
+            --retry 3 --retry-delay 5 --retry-connrefused \
+            --output image.img \
+            "${url}"
+
+      - name: Expand guest disk for provisioning headroom
+        run: |
+          # WHY: cloud-init growpart auto-expands the partition/fs at real
+          #   boot (unlike the guestmount+chroot path this replaces, which
+          #   never boots the guest and needed virt-resize instead).
+          qemu-img resize image.img +20G
+
+      - name: Serve PR checkout for guest fetch
+        run: |
+          # WHY-NOT: github.com archive/<sha> — fork PRs have no fetchable
+          #   merge-commit archive on github.com without extra API calls;
+          #   serving the local checkout works uniformly for same-repo and
+          #   fork PRs alike.
+          git archive --format=tar.gz --prefix=devtool-src/ --output=devtool-src.tar.gz HEAD
+          mkdir --parents www/scripts/provision www/tests/vm
+          cp devtool-src.tar.gz www/
+          cp scripts/provision/bootstrap.sh www/scripts/provision/bootstrap.sh
+          cp tests/vm/verify.sh www/tests/vm/verify.sh
+          python3 -m http.server 8000 --directory www &
+
+      - name: Build cloud-init seed image
+        run: |
+          cloud-localds seed.img tests/vm/user-data.yaml
+
+      - name: Boot guest and wait for test sentinel
+        run: |
+          set -o pipefail
+          timeout --signal=KILL 1500 \
+            qemu-system-x86_64 \
+            -enable-kvm -cpu host -smp 4 -m 8G \
+            -drive file=image.img,if=virtio,cache=unsafe \
+            -drive file=seed.img,if=virtio,format=raw \
+            -nic user,model=virtio-net-pci \
+            -display none \
+            -serial file:console.log \
+            || true
+
+          echo "===== console.log ====="
+          cat console.log || true
+
+          grep --quiet "^DEVTOOL_VM_TEST: PASS$" console.log
+
+      - name: Write phase timing summary
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## KVM boot test timing (${{ matrix.series }})"
+            echo ''
+            echo '```'
+            grep --extended-regexp "^DEVTOOL_VM_TEST:" console.log || echo "no sentinel lines captured"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload console log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: devtool-${{ matrix.series }}-kvm-console
+          path: console.log
+          retention-days: 7

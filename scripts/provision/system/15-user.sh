@@ -8,7 +8,7 @@ DEFAULT_UID="${DEFAULT_UID:-1100}"
 DEFAULT_GID="${DEFAULT_GID:-1100}"
 DEFAULT_USERNAME="${DEFAULT_USERNAME:-user}"
 # WHY-NOT: hardcoding /bin/bash — the bare Ubuntu path has no fish installed,
-#   so it would fail. Baked WSL2/qcow2 already install fish via 40-fish.sh,
+#   so it would fail. WSL2/VM targets already install fish via 40-fish.sh,
 #   so /usr/bin/fish is the default when DEVTOOL_USER_SHELL is unset.
 #   The ADR-0006 requirement "bare Ubuntu uses bash" is handled by the
 #   caller bootstrap.sh passing DEVTOOL_USER_SHELL=/bin/bash (Cycle 8).
