@@ -226,6 +226,16 @@ jobs:
           sudo lxd waitready
           sudo lxd init --auto
 
+          # WHY: Docker is preinstalled and running on GH-hosted runners and
+          #   sets the iptables FORWARD chain's default policy to DROP,
+          #   accepting only its own docker0/network bridges explicitly.
+          #   lxdbr0 is created afterward, so its traffic hits that default
+          #   DROP — confirmed via net-probe showing 0 bytes/s guest-to-
+          #   internet despite host-to-container bridge traffic working
+          #   fine. Explicitly accepting lxdbr0 forwarding restores egress.
+          sudo iptables -I FORWARD -i lxdbr0 -j ACCEPT
+          sudo iptables -I FORWARD -o lxdbr0 -j ACCEPT
+
       - name: Serve PR checkout for guest fetch
         run: |
           # WHY-NOT: github.com archive/<sha> — fork PRs have no fetchable
