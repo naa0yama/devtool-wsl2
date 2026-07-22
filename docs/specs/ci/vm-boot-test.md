@@ -58,7 +58,14 @@ build.yml
    guest からは QEMU user-mode networking のホストゲートウェイ
    `10.0.2.2:8000` で到達する
 7. **cloud-init seed 生成** — `cloud-localds seed.img tests/vm/user-data.yaml`
-8. **qemu 起動 + sentinel 待機** — foreground boot
+8. **host 側 download スループット probe (control)** — runner 自身から
+   `tests/vm/user-data.yaml` の guest 側 control probe と同一 URL パターン
+   ・同一 `--max-time` (`dists/${{ matrix.series }}/Release`, 30s) で
+   `curl` 取得し `speed_download` を `host-probe.log` へ記録。host/guest
+   probe を揃えることで両者を直接比較可能にし、bulk-fetch 停滞が runner
+   全体のネットワーク特性 (qemu/SLIRP 経路の外でも再現する) か、
+   guest/SLIRP proxy 固有かを切り分ける
+9. **qemu 起動 + sentinel 待機** — foreground boot
    (`-enable-kvm -cpu host -smp 4 -m 8G -serial file:console.log`)、
    `timeout --signal=KILL 1500` で保護。`console.log` から
    `DEVTOOL_VM_TEST: PASS` sentinel を grep
@@ -71,8 +78,10 @@ build.yml
    MTU は `-netdev user` に直接指定できない (`Invalid parameter 'mtu'`) ため
    `-device virtio-net-pci` の `host_mtu` (VIRTIO_NET_F_MTU 経由の negotiation)
    で guest へ伝え、fragmentation を回避し安定化。
-9. **timing summary** (`if: always()`) — sentinel 行を `GITHUB_STEP_SUMMARY` へ
-10. **console.log artifact upload** (`if: always()`) — 失敗時の一次調査用
+10. **timing summary** (`if: always()`) — `host-probe.log` の内容 + sentinel 行を
+    `GITHUB_STEP_SUMMARY` へ
+11. **console.log artifact upload** (`if: always()`) — `console.log` と
+    `host-probe.log` を artifact として upload、失敗時の一次調査用
 
 ---
 

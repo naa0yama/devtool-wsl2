@@ -262,6 +262,23 @@ jobs:
         run: |
           cloud-localds seed.img tests/vm/user-data.yaml
 
+      - name: Probe host-side download throughput (control)
+        run: |
+          # WHY: isolates whether a bulk-fetch stall is a runner-wide network
+          #   characteristic (reproduces here, outside any qemu/SLIRP path)
+          #   versus something specific to the guest/SLIRP proxy. Mirrors the
+          #   guest-side control probe in tests/vm/user-data.yaml (same URL
+          #   pattern, same --max-time) so the two speed readings are
+          #   directly comparable.
+          {
+            echo "DEVTOOL_VM_TEST: host probe begin epoch=$(date +%s)"
+            curl --silent --show-error --location --max-time 30 \
+              --retry 2 --retry-delay 2 --retry-connrefused \
+              --output /dev/null --write-out "DEVTOOL_VM_TEST: host probe speed=%{speed_download} bytes/s\n" \
+              "http://archive.ubuntu.com/ubuntu/dists/${{ matrix.series }}/Release" \
+              || echo "DEVTOOL_VM_TEST: host probe failed"
+          } | tee host-probe.log
+
       - name: Boot guest and wait for test sentinel
         run: |
           set -o pipefail
@@ -297,6 +314,7 @@ jobs:
             echo "## KVM boot test timing (${{ matrix.series }})"
             echo ''
             echo '```'
+            grep --extended-regexp "^DEVTOOL_VM_TEST:" host-probe.log 2> /dev/null || echo "no host probe log captured"
             grep --extended-regexp "^DEVTOOL_VM_TEST:" console.log || echo "no sentinel lines captured"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -306,5 +324,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: devtool-${{ matrix.series }}-kvm-console
-          path: console.log
+          path: |
+            console.log
+            host-probe.log
           retention-days: 7
