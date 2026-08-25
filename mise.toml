@@ -4,7 +4,7 @@
 "cargo:topgrade" = "latest"
 awscli = { version = "latest", symlink_bins = "true" }
 chezmoi = "2.72.0"
-dprint = "0.55.2"
+dprint = "0.56.0"
 dua = "2.42.1"
 fzf = "0.74.3"
 ghq = "1.10.1"
