@@ -5,7 +5,7 @@
 awscli = { version = "latest", symlink_bins = "true" }
 chezmoi = "2.73.1"
 dprint = "0.63.0"
-dua = "2.45.1"
+dua = "2.46.0"
 fzf = "0.74.5"
 ghq = "1.11.2"
 github-cli = "2.102.0"
