@@ -15,7 +15,7 @@ node = "24"
 ripgrep = "latest"
 shellcheck = "latest"
 starship = "latest"
-tmux = "3.6a"
+tmux = "3.8"
 usage = "latest"
 
 [tasks.pre-commit]
